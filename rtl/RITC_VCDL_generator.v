@@ -1,4 +1,17 @@
 `timescale 1ns / 1ps
+////////////////////////////////////////////////////////////////////////////////
+// This file is a part of the Antarctic Impulsive Transient Antenna (ANITA)
+// project, a collaborative scientific effort between multiple institutions. For
+// more information, contact Peter Gorham (gorham@phys.hawaii.edu).
+//
+// All rights reserved.
+//
+// Author: Patrick Allison, Ohio State University (allison.122@osu.edu)
+// Author: Luca Macchiarulo, University of Hawaii (lucam@hawaii.edu)
+// Author:
+////////////////////////////////////////////////////////////////////////////////
+
+
 //% Generate the RITC VCDL input.
 //%
 //% This module actually generates 3 copies of the VCDL signal.
@@ -47,52 +60,28 @@ module RITC_VCDL_generator(
 	endgenerate
 
 	// Screw this. Just fix its goddamn location.
-//	(* LOC = "IODELAY_X0Y20" *)
-//	(* IODELAY_GROUP = VCDL_IODELAY_GROUP *)
-//	IODELAYE1 #(.IDELAY_TYPE("VAR_LOADABLE"),
-//						.DELAY_SRC("DATAIN"),
-//						.IDELAY_VALUE(0),
-//						.HIGH_PERFORMANCE_MODE("TRUE"),
-//						.SIGNAL_PATTERN("DATA"))
-//						u_vcdl_sync_idelay(.DATAIN(vcdl_debug),
-//												 .IDATAIN(1'b0),
-//												 .ODATAIN(1'b0),
-//												 .C(CLK),
-//												 .CE(1'b0),
-//												 .INC(1'b0),
-//												 .RST(load_delay_i),
-//												 .CNTVALUEIN(delay_i),
-//												 .DATAOUT(vcdl_sync_o));
-//(* LOC = "IODELAY_X0Y20" *)
-//(* LOC = "IDELAY_X0Y99" *) for RITC0 - _A
-//(* LOC = "IDELAY_X1Y134" *) for RITC1 - _B
-(* LOC = IDELAYE2LOC *) 
-
-(* IODELAY_GROUP = VCDL_IODELAY_GROUP *) // Specifies group name for associated IDELAYs/ODELAYs and IDELAYCTRL
-IDELAYE2 #(
-.CINVCTRL_SEL("FALSE"), // Enable dynamic clock inversion (FALSE, TRUE)
-.DELAY_SRC("DATAIN"), // Delay input (IDATAIN, DATAIN)
-.HIGH_PERFORMANCE_MODE("TRUE"), // Reduced jitter ("TRUE"), Reduced power ("FALSE")
-//.IDELAY_TYPE("FIXED"), // FIXED, VARIABLE, VAR_LOAD, VAR_LOAD_PIPE
-.IDELAY_VALUE(0), // Input delay tap setting (0-31)
-.PIPE_SEL("FALSE"), // Select pipelined mode, FALSE, TRUE
-.REFCLK_FREQUENCY(200.0), // IDELAYCTRL clock input frequency in MHz (190.0-210.0).
-.SIGNAL_PATTERN("DATA") // DATA, CLOCK input signal
-)
-u_vcdl_sync_idelay (
-//.CNTVALUEOUT(CNTVALUEOUT), // 5-bit output: Counter value output
-.DATAOUT(vcdl_sync_o), // 1-bit output: Delayed data output
-.C(CLK), // 1-bit input: Clock input
-.CE(1'b0), // 1-bit input: Active high enable increment/decrement input
-//.CINVCTRL(CINVCTRL), // 1-bit input: Dynamic clock inversion input
-.CNTVALUEIN(delay_i), // 5-bit input: Counter value input
-.DATAIN(vcdl_debug), // 1-bit input: Internal delay data input
-.IDATAIN(1'b0), // 1-bit input: Data input from the I/O
-.INC(1'b0), // 1-bit input: Increment / Decrement tap delay input
-//.LD(LD), // 1-bit input: Load IDELAY_VALUE input
-//.LDPIPEEN(LDPIPEEN), // 1-bit input: Enable PIPELINE register to load data input
-.REGRST(load_delay_i) // 1-bit input: Active-high reset tap-delay input
-);
+	(* LOC = IDELAYE2LOC *) 
+	(* IODELAY_GROUP = VCDL_IODELAY_GROUP *) // Specifies group name for associated IDELAYs/ODELAYs and IDELAYCTRL
+	IDELAYE2 #(
+		.CINVCTRL_SEL("FALSE"), // Enable dynamic clock inversion (FALSE, TRUE)
+		.DELAY_SRC("DATAIN"), // Delay input (IDATAIN, DATAIN)
+		.HIGH_PERFORMANCE_MODE("TRUE"), // Reduced jitter ("TRUE"), Reduced power ("FALSE")
+		.IDELAY_TYPE("VAR_LOAD"), // FIXED, VARIABLE, VAR_LOAD, VAR_LOAD_PIPE
+		.IDELAY_VALUE(0), // Input delay tap setting (0-31)
+		.PIPE_SEL("FALSE"), // Select pipelined mode, FALSE, TRUE
+		.REFCLK_FREQUENCY(200.0), // IDELAYCTRL clock input frequency in MHz (190.0-210.0).
+		.SIGNAL_PATTERN("DATA") // DATA, CLOCK input signal
+	)
+	u_vcdl_sync_idelay (
+		.DATAOUT(vcdl_sync_o), // 1-bit output: Delayed data output
+		.C(CLK), // 1-bit input: Clock input
+		.CE(1'b0), // 1-bit input: Active high enable increment/decrement input
+		.CNTVALUEIN(delay_i), // 5-bit input: Counter value input
+		.DATAIN(vcdl_debug), // 1-bit input: Internal delay data input
+		.IDATAIN(1'b0), // 1-bit input: Data input from the I/O
+		.INC(1'b0), // 1-bit input: Increment / Decrement tap delay input
+		.LD(load_delay_i)
+	);
 												 
 	assign VCDL = vcdl_out;
 	assign vcdl_debug_o = vcdl_debug;

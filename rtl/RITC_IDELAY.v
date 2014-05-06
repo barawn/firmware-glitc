@@ -155,7 +155,7 @@ module RITC_IDELAY(
 						.SIGNAL_PATTERN("DATA"))
 							CH0_clk_delay(.IDATAIN(REFCLK_polarity_sel[0]),.DATAIN(1'b0),
 											  .DATAOUT(CH0_CLK_delay),
-											  .CNTVALUEIN(DELAY_IN),.REGRST(load_CLK[0]),
+											  .CNTVALUEIN(DELAY_IN),.LD(load_CLK[0]),
 											  .C(CLK),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 		assign sel_CLK[1] = (ADDR_IN[5:4] == 2'b01) && (ADDR_IN[3:0] == 4'hF);
 		(* IODELAY_GROUP = GRP1_CLOCK_NAME *)
@@ -166,7 +166,7 @@ module RITC_IDELAY(
 						.SIGNAL_PATTERN("DATA"))
 							CH1_clk_delay(.IDATAIN(REFCLK_polarity_sel[1]),.DATAIN(1'b0),
 											  .DATAOUT(CH1_CLK_delay),
-											  .CNTVALUEIN(DELAY_IN),.REGRST(load_CLK[1]),
+											  .CNTVALUEIN(DELAY_IN),.LD(load_CLK[1]),
 											  .C(CLK),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 		assign sel_CLK[2] = (ADDR_IN[5:4] == 2'b10) && (ADDR_IN[3:0] == 4'hF);
 		(* IODELAY_GROUP = GRP2_CLOCK_NAME *)
@@ -177,7 +177,7 @@ module RITC_IDELAY(
 						.SIGNAL_PATTERN("DATA"))
 							CH2_clk_delay(.IDATAIN(REFCLK_polarity_sel[2]),.DATAIN(1'b0),
 											  .DATAOUT(CH2_CLK_delay),
-											  .CNTVALUEIN(DELAY_IN),.REGRST(load_CLK[2]),
+											  .CNTVALUEIN(DELAY_IN),.LD(load_CLK[2]),
 											  .C(CLK),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 		for (i=0;i<12;i=i+1) begin : LOOP
 			assign sel[0][i] = (ADDR_IN[5:4] == 2'b00) && (ADDR_IN[3:0] == i);
@@ -189,7 +189,7 @@ module RITC_IDELAY(
 							.SIGNAL_PATTERN("DATA"))
 							CH0_bit_delay(.IDATAIN(CH_polarity_sel[0][i]),.DATAIN(1'b0),
 											.DATAOUT(CH0_delay[i]),
-											.CNTVALUEIN(DELAY_IN),.REGRST(load_CH[0][i]),
+											.CNTVALUEIN(DELAY_IN),.LD(load_CH[0][i]),
 											.C(REFCLKDIV2[0]),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 			assign sel[1][i] = (ADDR_IN[5:4] == 2'b01) && (ADDR_IN[3:0] == i);
 			(* IODELAY_GROUP = GRP1_NAME *)
@@ -200,7 +200,7 @@ module RITC_IDELAY(
 							.SIGNAL_PATTERN("DATA"))
 							CH1_bit_delay(.IDATAIN(CH_polarity_sel[1][i]),.DATAIN(1'b0),
 											.DATAOUT(CH1_delay[i]),
-											.CNTVALUEIN(DELAY_IN),.REGRST(load_CH[1][i]),
+											.CNTVALUEIN(DELAY_IN),.LD(load_CH[1][i]),
 											.C(REFCLKDIV2[1]),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 			assign sel[2][i] = (ADDR_IN[5:4] == 2'b10) && (ADDR_IN[3:0] == i);
 			(* IODELAY_GROUP = GRP2_NAME *)
@@ -211,7 +211,7 @@ module RITC_IDELAY(
 							.SIGNAL_PATTERN("DATA"))
 							CH2_bit_delay(.IDATAIN(CH_polarity_sel[2][i]),.DATAIN(1'b0),
 											.DATAOUT(CH2_delay[i]),
-											.CNTVALUEIN(DELAY_IN),.REGRST(load_CH[2][i]),
+											.CNTVALUEIN(DELAY_IN),.LD(load_CH[2][i]),
 											.C(REFCLKDIV2[2]),.CINVCTRL(1'b0),.CE(1'b0),.INC(1'b0));
 		end
 	endgenerate
