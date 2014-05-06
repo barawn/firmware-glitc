@@ -71,7 +71,7 @@ module RITC_VCDL_generator(
 (* IODELAY_GROUP = VCDL_IODELAY_GROUP *) // Specifies group name for associated IDELAYs/ODELAYs and IDELAYCTRL
 IDELAYE2 #(
 .CINVCTRL_SEL("FALSE"), // Enable dynamic clock inversion (FALSE, TRUE)
-.DELAY_SRC("IDATAIN"), // Delay input (IDATAIN, DATAIN)
+.DELAY_SRC("DATAIN"), // Delay input (IDATAIN, DATAIN)
 .HIGH_PERFORMANCE_MODE("TRUE"), // Reduced jitter ("TRUE"), Reduced power ("FALSE")
 //.IDELAY_TYPE("FIXED"), // FIXED, VARIABLE, VAR_LOAD, VAR_LOAD_PIPE
 .IDELAY_VALUE(0), // Input delay tap setting (0-31)

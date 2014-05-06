@@ -1,7 +1,7 @@
 ##############################################################
 #
-# Xilinx Core Generator version 14.4
-# Date: Wed Apr 16 14:40:23 2014
+# Xilinx Core Generator version 14.7
+# Date: Tue May 06 11:34:54 2014
 #
 ##############################################################
 #
@@ -21,7 +21,7 @@ SET addpads = false
 SET asysymbol = true
 SET busformat = BusFormatAngleBracketNotRipped
 SET createndf = false
-SET designentry = VHDL
+SET designentry = Verilog
 SET device = xc7a200t
 SET devicefamily = artix7
 SET flowvendor = Other
@@ -32,8 +32,8 @@ SET package = fbg484
 SET removerpms = false
 SET simulationfiles = Behavioral
 SET speedgrade = -2
-SET verilogsim = false
-SET vhdlsim = true
+SET verilogsim = true
+SET vhdlsim = false
 # END Project Options
 # BEGIN Select
 SELECT SelectIO_Interface_Wizard xilinx.com:ip:selectio_wiz:4.1
@@ -85,4 +85,4 @@ CSET v6_oddr_alignment=SAME_EDGE
 MISC pkg_timestamp=2012-03-26T12:54:40Z
 # END Extra information
 GENERATE
-# CRC:  5172c8a
+# CRC: 95e79a0b

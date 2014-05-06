@@ -56,7 +56,7 @@ PHI_UP_IN_P :in std_logic_vector(3 downto 0);
 PHI_UP_IN_N :in std_logic_vector(3 downto 0);
 
 -- Monitoring pins
-GA_MON :out std_logic_vector(4 downto 0);
+GA_MON : out std_logic_vector(4 downto 0);
 
 -- System clock
 GA_SYSCLK_P : in std_logic;
@@ -506,8 +506,7 @@ signal REFCLK_B_to_BUFR : std_logic;
 
 begin
 
-
-
+GA_MON <= ( others => '0' );
 
 REFCLK_A_P <= C_CLK_P & B_CLK_P & A_CLK_P; -- channel 0 => A
 REFCLK_A_N <= C_CLK_N & B_CLK_N & A_CLK_N; -- channel 0 => A
