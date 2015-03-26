@@ -1,6 +1,6 @@
 --
 -------------------------------------------------------------------------------------------
--- Copyright © 2010-2012, Xilinx, Inc.
+-- Copyright © 2010-2014, Xilinx, Inc.
 -- This file contains confidential and proprietary information of Xilinx, Inc. and is
 -- protected under U.S. and international copyright and other intellectual property laws.
 -------------------------------------------------------------------------------------------
@@ -45,6 +45,9 @@
 --                         Correction to parity computation logic.
 --           Version 1.2 - 4th October 2012. 
 --                         Addition of WebTalk information.
+--           Version 1.3 - 21st May 2014. 
+--                         Disassembly of 'STAR sX, kk' instruction added to the simulation
+--                         code. No changes to functionality or the physical implementation.
 --
 -- Ken Chapman
 -- Xilinx Ltd
@@ -545,7 +548,7 @@ signal     sim_spmFF : std_logic_vector(7 downto 0) := X"00";
 
 attribute CORE_GENERATION_INFO : string;
 attribute CORE_GENERATION_INFO of low_level_definition : ARCHITECTURE IS 
-    "kcpsm6,kcpsm6_v1_2,{component_name=kcpsm6}";
+    "kcpsm6,kcpsm6_v1_3,{component_name=kcpsm6}";
 
 --
 -- Attributes to guide mapping of logic into Slices.
@@ -2288,6 +2291,7 @@ begin
       when "000000" => kcpsm6_opcode <= "LOAD " & sx_decode & ", " & sy_decode & "        ";
       when "000001" => kcpsm6_opcode <= "LOAD " & sx_decode & ", " & kk_decode & "        ";
       when "010110" => kcpsm6_opcode <= "STAR " & sx_decode & ", " & sy_decode & "        ";
+      when "010111" => kcpsm6_opcode <= "STAR " & sx_decode & ", " & kk_decode & "        ";
       when "000010" => kcpsm6_opcode <= "AND " & sx_decode & ", " & sy_decode & "         ";
       when "000011" => kcpsm6_opcode <= "AND " & sx_decode & ", " & kk_decode & "         ";
       when "000100" => kcpsm6_opcode <= "OR " & sx_decode & ", " & sy_decode & "          ";
@@ -2376,7 +2380,7 @@ begin
         end case;
       when others => kcpsm6_opcode <= "Invalid Instruction";
     end case;
-	 
+
 
 
     -- Flag status information
