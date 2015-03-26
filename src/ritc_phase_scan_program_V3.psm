@@ -1,0 +1,425 @@
+CONSTANT command_port, 	      00
+CONSTANT scan_port,    	      01
+
+CONSTANT argument_low_port,   02
+CONSTANT argument_high_port,  03
+CONSTANT result_low_port,     04
+CONSTANT result_high_port,    05
+CONSTANT servo_low_port,      06
+CONSTANT servo_high_port,     07
+CONSTANT debug_port,          08
+CONSTANT servoctl_port,       0C
+
+CONSTANT bmScanPsEn,		01
+CONSTANT bmScanPsInc,		02
+CONSTANT bmScanPsDec,		00
+CONSTANT bmScanPsDone,		04
+CONSTANT bmScanDone,		08
+CONSTANT bmScanCLOCK,		10
+CONSTANT bmScanDATA,		20
+CONSTANT bmScanVCDL,		40
+CONSTANT bmScanRESET,		80
+
+CONSTANT bmVddIncrement,	01
+CONSTANT bmVddDecrement,	02
+
+CONSTANT cmdIdle,		00
+CONSTANT cmdLocateTargetEdge,	01
+CONSTANT cmdRealignToStep,	02
+CONSTANT cmdSpecifyDutyMinStep,	03
+CONSTANT cmdSpecifyDutyMaxStep, 04
+CONSTANT cmdSpecifyDutySums,	05
+CONSTANT cmdDoDutyCycleCalc,	06
+CONSTANT cmdSpecifyServoMin,	07
+CONSTANT cmdSpecifyServoMax,	08
+CONSTANT cmdDoServo,		09
+CONSTANT cmdDoSimpleScan,	0A
+CONSTANT cmdDoServoCalc,	0B
+CONSTANT cmdRealignOriginal,	0C
+
+; How often we need to see a state stay constant before we call it an edge.
+CONSTANT locateEdgeRepCount,	0A
+
+; Variables (well, their memory locations)
+CONSTANT dutyMinStepLow,	00
+CONSTANT dutyMinStepHigh,	01
+CONSTANT dutyMaxStepLow,	02
+CONSTANT dutyMaxStepHigh,	03
+CONSTANT dutySumCountLow,	04
+CONSTANT dutySumCountHigh,	05
+CONSTANT servoMinLow,		06
+CONSTANT servoMinHigh,		07
+CONSTANT servoMaxLow,		08
+CONSTANT servoMaxHigh,		09
+CONSTANT currentServoLow,	0A
+CONSTANT currentServoHigh,	0B
+CONSTANT errorCount,		0C
+CONSTANT PSOriginalLow,		0D
+CONSTANT PSOriginalHigh,	0E
+; This is the number of delays needed
+; to move a full VCDL period: number of steps/VCO cycle (56)
+; times number of VCO cycles per VCDL (12): 56*12 = 672
+; or 2A0.
+CONSTANT PSMaxLow, A0
+CONSTANT PSMaxHigh, 02
+CONSTANT PSHalfLow, 50
+CONSTANT PSHalfHigh, 01
+CONSTANT PSLastLow, 9F
+CONSTANT PSLastHigh, 02
+
+NAMEREG	 s8, PSLow
+NAMEREG	 s9, PSHigh
+NAMEREG	 sA, DutyLow
+NAMEREG	 sB, DutyHigh
+NAMEREG	 sC, CountLow
+NAMEREG	 sD, CountHigh
+
+NAMEREG	 sF, TimerReg
+
+reset:
+		load	PSLow, 	00
+		load	PSHigh, 00
+		store	PSLow,	PSOriginalLow
+		store	PSHigh,	PSOriginalHigh
+		load	TimerReg, 00
+		STAR	s1,	TimerReg
+		ENABLE INTERRUPT
+poll:		COMPARE	TimerReg,	00
+		JUMP	NZ,	timer_went_off
+		INPUT	s0,	command_port
+		COMPARE	s0, 	cmdIdle
+		JUMP	Z,	poll
+		COMPARE	s0,	cmdDoSimpleScan
+		JUMP	Z,	do_scan
+		COMPARE	s0,	cmdLocateTargetEdge
+		JUMP	Z,	locateEdge
+		COMPARE	s0,	cmdRealignToStep
+		JUMP	Z,	do_realign
+		COMPARE	s0,	cmdSpecifyDutyMinStep
+		JUMP	Z,	loadDutyMinStep
+		COMPARE s0,	cmdSpecifyDutyMaxStep
+		JUMP	Z,	loadDutyMaxStep
+		COMPARE	s0,	cmdSpecifyDutySums
+		JUMP	Z,	loadDutySums		
+		COMPARE	s0,	cmdDoDutyCycleCalc
+		JUMP	Z,	doDutyCalc
+		COMPARE	s0,	cmdDoServoCalc
+		JUMP	Z,	doServoCalc
+		COMPARE	s0,	cmdSpecifyServoMin
+		JUMP	Z,	loadServoMin
+		COMPARE	s0,	cmdSpecifyServoMax
+		JUMP	Z,	loadServoMax
+		COMPARE	s0,	cmdDoServo
+		JUMP	Z,	setServoEnable
+		JUMP	poll
+timer_went_off:	CALL	servo_measurement
+		FETCH	s2,	servoMinLow
+		FETCH	s3,	servoMinHigh
+		COMPARE		s0,	s2
+		COMPARECY 	s1,	s3
+		; is (currentServo < servoMin)
+		JUMP	C,	servo_is_too_low
+		FETCH	s2,	servoMaxLow
+		FETCH	s3,	servoMaxHigh
+		; is (servoMax < currentServo)
+		COMPARE		s2,	s0
+		COMPARECY	s3,	s1
+		JUMP	C,	servo_is_too_high
+servo_is_just_right:
+		LOAD	s0,	04
+		OUTPUT	s0,	debug_port
+		LOAD	s0,	00
+		OUTPUT	s0,	debug_port
+servo_finish:	LOAD	TimerReg,	00
+		JUMP	poll
+servo_is_too_low:
+		LOAD	s0,	05
+		OUTPUT	s0,	debug_port
+		LOAD	s0,	00
+		OUTPUT	s0,	debug_port
+		COMPARE	TimerReg,	02
+		JUMP	Z,	servo_finish
+		LOAD	s0,	bmVddDecrement
+		OUTPUT	s0,	servoctl_port
+		JUMP	servo_finish
+servo_is_too_high:
+		LOAD	s0,	06
+		OUTPUT	s0,	debug_port
+		LOAD	s0,	00
+		OUTPUT	s0,	debug_port
+		COMPARE	TimerReg,	02
+		JUMP	Z,	servo_finish
+		LOAD	s0,	bmVddIncrement
+		OUTPUT	s0,	servoctl_port
+		JUMP	servo_finish
+doServoCalc:	CALL	servo_measurement
+		OUTPUT	s0,	result_low_port
+		OUTPUT	s1,	result_high_port
+		LOAD	s0,	cmdIdle
+		OUTPUT	s0,	command_port
+		JUMP	poll
+doDutyCalc:	CALL	dutyCycleCalculation
+		OUTPUT	s0,	result_low_port
+		OUTPUT	s1,	result_high_port
+		LOAD	s0,	cmdIdle
+		OUTPUT	s0,	command_port
+		JUMP	poll
+dutyCycleCalculation:
+		LOAD	DutyLow, 00
+		LOAD	DutyHigh, 00
+		LOAD	CountLow, 00
+		LOAD	CountHigh, 00		
+dutyLoopStart:  FETCH	s1,	dutyMinStepLow
+		FETCH	s2,	dutyMinStepHigh
+		CALL	go_to_phase
+		FETCH	s1,	dutyMaxStepLow
+		FETCH	s2,	dutyMaxStepHigh
+dutyLoop:	INPUT	s0,	scan_port
+		TEST	s0,	bmScanCLOCK
+		ADDCY	DutyLow, 00
+		ADDCY	DutyHigh, 00
+		CALL	phase_step
+		COMPARE	PSLow,	s1
+		COMPARECY PSHigh, s2
+		JUMP	NZ,	dutyLoop
+		ADD	CountLow,	01
+		ADDCY	CountHigh,	00
+		FETCH	s1,	dutySumCountLow
+		FETCH	s2,	dutySumCountHigh
+		COMPARE	s1,	CountLow
+		COMPARECY s2,	CountHigh
+		JUMP	NZ,	dutyLoopStart
+		RETURN
+loadDutyMinStep:
+		INPUT	s0,	argument_low_port
+		STORE	s0,	dutyMinStepLow
+		INPUT	s0,	argument_high_port
+		STORE	s0,	dutyMinStepHigh
+		LOAD	s0,	cmdIdle	
+		OUTPUT	s0,	command_port
+		JUMP	poll
+loadDutyMaxStep:
+		INPUT	s0,	argument_low_port
+		STORE	s0,	dutyMaxStepLow
+		INPUT	s0,	argument_high_port
+		STORE	s0,	dutyMaxStepHigh
+		LOAD	s0,	cmdIdle	
+		OUTPUT	s0,	command_port
+		JUMP	poll
+loadDutySums:
+		INPUT	s0,	argument_low_port
+		STORE	s0,	dutySumCountLow
+		INPUT	s0,	argument_high_port
+		STORE	s0,	dutySumCountHigh
+		LOAD	s0,	cmdIdle	
+		OUTPUT	s0,	command_port
+		JUMP	poll
+loadServoMin:
+		INPUT	s0,	argument_low_port
+		STORE	s0,	servoMinLow
+		INPUT	s0,	argument_high_port
+		STORE	s0,	servoMinHigh
+		LOAD	s0,	cmdIdle	
+		OUTPUT	s0,	command_port
+		JUMP	poll
+loadServoMax:
+		INPUT	s0,	argument_low_port
+		STORE	s0,	servoMaxLow
+		INPUT	s0,	argument_high_port
+		STORE	s0,	servoMaxHigh
+		LOAD	s0,	cmdIdle	
+		OUTPUT	s0,	command_port
+		JUMP	poll
+setServoEnable:	INPUT	s0,	argument_low_port
+		STAR	s1,	s0
+		LOAD	s0,	cmdIdle
+		OUTPUT	s0,	command_port
+		JUMP	poll
+do_scan:	LOAD	s1,	00
+		LOAD	s2,	00
+		CALL	go_to_phase
+scan_lp1:	CALL	phase_step
+		COMPARE	PSLow,	00
+		COMPARECY PSHigh, 00
+		JUMP	NZ, 	scan_lp1
+		LOAD	s0,	bmScanDone
+		OUTPUT	s0,	scan_port
+		JUMP poll
+go_to_phase:
+		COMPARE	PSLow,	s1
+		COMPARECY PSHigh,	s2
+		RETURN	Z
+		CALL	phase_step
+		JUMP	go_to_phase
+phase_dec_cnt:	load	s1,	s0
+		load	s0,	bmScanPsEn
+phase_dec_jp1: 	output	s0,	scan_port
+		CALL	wait_done
+		SUB	PSLow,	01
+		SUBCY	PSHigh,	00
+		JUMP	NC,	phase_dec_jp2
+		LOAD	PSLow,	PSMaxLow
+		LOAD	PSHigh, PSMaxHigh
+phase_dec_jp2:	SUB	s1,	01
+		JUMP	NZ,	phase_dec_jp1
+		RETURN
+phase_step:
+		; Move up a step.
+		load	s0,	03
+		output	s0,	scan_port
+		CALL	wait_done
+		ADD	PSLow,	01
+		ADDCY	PSHigh, 00
+		COMPARE	PSLow, 	PSMaxLow
+		COMPARECY PSHigh, PSMaxHigh
+		RETURN	NZ
+		LOAD	PSLow,	00
+		LOAD	PSHigh, 00
+		RETURN
+wait_done:	input	s0,	scan_port
+		test	s0,	bmScanPsDone
+		JUMP	Z,	wait_done
+		RETURN
+locateEdge:		INPUT		s1,	argument_low_port
+			INPUT		s2,	argument_high_port
+			LOAD		s3,	s2
+			AND		s2,	03
+			AND		s3,	FC
+			JUMP		Z,	locateEdgeClock
+			COMPARE		s3,	04
+			JUMP		Z,	locateEdgeData
+			LOAD		s3,	bmScanVCDL
+			JUMP		doLocateEdge
+locateEdgeClock:	LOAD		s3,	bmScanCLOCK
+			JUMP		doLocateEdge
+locateEdgeData:		LOAD		s3,	bmScanDATA
+doLocateEdge:		CALL		locateEdgeFn
+			OUTPUT		s0,	result_low_port
+			OUTPUT		s1,	result_high_port
+			LOAD		s0,	cmdIdle
+			OUTPUT		s0,	command_port
+			JUMP		poll
+
+;
+; OK: at locateEdgeFn
+; (s1,s2): starting phase to locate edge from
+; (s3): bitmask to test for edge.
+; return 
+locateEdgeFn:
+			CALL		go_to_phase
+; (s4, s5) will contain the edge. (s6) the last bit. (s7) the rep number.
+			load		s4,	00			
+			load		s5,	00
+locateEdgeBegin:	INPUT		s1,	scan_port
+			AND		s1,	s3
+			JUMP		Z,	edgeScanZero
+edgeScanOne:		COMPARE		s4,	00
+			COMPARECY	s5,	00
+; If (s4, s5) are zero, that means we have never seen a zero
+; before, so the 1 here means we need to step all the way through the
+; "clock high" portion.
+			JUMP		Z,	edgeKeepLooking
+; If (s4, s5) are NOT zero, that means we DID see a zero
+; before, so we may be at the rising edge.
+; Check to see how many times we've seen a 1.
+			ADD		s7,	01
+			COMPARE		s7,	locateEdgeRepCount
+			JUMP		Z,	edgeFound
+			JUMP		edgeKeepLooking
+; We saw a zero. So set (s4,s5) equal to the current value.
+; Set the rep count to 0 (in case we found a blip).
+; Then keep going.
+edgeScanZero:		LOAD		s4,	PSLow
+			LOAD		s5,	PSHigh
+			LOAD		s7,	00
+edgeKeepLooking:	COMPARE		PSLow, 	PSLastLow
+			COMPARECY	PSHigh,	PSLastHigh
+			JUMP		Z,	edgeNotFound
+			CALL		phase_step
+			JUMP		locateEdgeBegin
+edgeFound:		LOAD		s0,	s4
+			LOAD		s1,	s5
+			RETURN
+edgeNotFound:		LOAD		s0,	FF
+			OUTPUT		s1,	FF
+			RETURN
+
+do_realign:		INPUT		s1,	argument_low_port
+			INPUT		s2,	argument_high_port
+			CALL		phaseRealign
+			LOAD		s0,	00
+			OUTPUT		s0,	command_port
+			JUMP		poll
+phaseRealign:		LOAD		s4,	s1
+			LOAD		s5,	s2
+			CALL		go_to_phase
+; We want to store the original phase here.
+; We just shifted forward (s4,s5) steps, so
+; add to the previous PSOriginalLow/High.
+			FETCH		s6,	PSOriginalLow
+			FETCH		s7,	PSOriginalHigh
+			ADD		s4,	s6
+			ADDCY		s5,	s7
+			COMPARE		s4,	PSMaxLow
+			COMPARECY	s5,	PSMaxHigh
+; Did we go past MaxLow/MaxHigh?
+			JUMP		C,	phaseRealignjp1
+; Yes. Subtract off MaxLow/MaxHigh, since we wrapped.
+; Note this handles both the NC ((s5,s4)>(PSMaxHigh,PSMaxLow))
+; and Z ((s5,s4)==(PSMaxHigh,PSMaxLow)) cases
+			SUB		s4,	PSMaxLow
+			SUBCY		s5,	PSMaxLow
+; Store the new point here. This is the number of *backward* shifts needed
+; to get back to the original alignment.
+phaseRealignjp1:	STORE		s4, 	PSOriginalLow
+			STORE		s5,	PSOriginalHigh
+; And zero out the position.
+			LOAD		PSLow,	00
+			LOAD		PSHigh, 00
+			RETURN
+;
+; This function calculates the servo measurement.
+; The acceptable band is loaded with cmdSpecifyServoMin/
+; cmdSpecifyServoMax. Should be 17280 - 17536.
+;
+servo_measurement:	LOAD		s0,	00
+			STORE		s0,	currentServoLow
+			STORE		s0,	currentServoHigh
+			LOAD		CountLow, 00
+servo_measurement_lp1:	LOAD		s1,	00
+			LOAD		s2,	00
+			LOAD		s3,	bmScanCLOCK
+			CALL		locateEdgeFn
+			COMPARE		s0,	FF
+			COMPARECY	s1,	FF
+			JUMP		Z,	servo_error
+			FETCH		s2,	currentServoLow
+			FETCH		s3,	currentServoHigh
+			ADD		s2,	s0
+			ADDCY		s3,	s1
+; Note that this TECHNICALLY can overflow. If it DOES, just keep it
+; at FFFF.
+			JUMP		NC,	servo_measurement_jp1
+			LOAD		s2,	FF
+			LOAD		s3,	FF
+servo_measurement_jp1:	STORE		s2,	currentServoLow
+			STORE		s3,	currentServoHigh
+			ADD		CountLow, 01
+			COMPARE		CountLow, 80
+			JUMP		NZ,	servo_measurement_lp1
+servo_measurement_done:	OUTPUT		s2,	servo_low_port
+			OUTPUT		s3,	servo_high_port
+			LOAD		s0,	s2
+			LOAD		s1,	s3
+			RETURN
+servo_error:		FETCH		s0,	servoMinLow
+			FETCH		s1,	servoMinHigh
+			RETURN
+ISR:			REGBANK	B
+			COMPARE		s1,	00
+			JUMP		Z,	ISR_done
+			STAR		sF,	s1
+ISR_done:		REGBANK A
+			RETURNI		ENABLE
+ADDRESS 3FF
+ISR_VECTOR:		JUMP		ISR
