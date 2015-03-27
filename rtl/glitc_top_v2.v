@@ -79,10 +79,10 @@ module glitc_top_v2(
 
 	localparam [3:0] VER_BOARDREV = 0;
 	localparam [3:0] VER_MONTH = 3;
-	localparam [7:0] VER_DAY = 11;
+	localparam [7:0] VER_DAY = 27;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 1;
-	localparam [7:0] VER_REV = 0;
+	localparam [7:0] VER_REV = 2;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -191,6 +191,7 @@ module glitc_top_v2(
 									  .user_dat_o(dac_data),
 									  .user_wr_i(gb_wr),
 									  .user_rd_i(gb_rd),
+									  .debug_o(dac_debug),
 
 									  .servo_addr_i(servo_addr),
 									  .servo_wr_i(servo_wr),

@@ -133,8 +133,8 @@ module RITC_Dual_DAC(
 	
 	assign user_bram_dat_out = (addr_in[6]) ? bram_dat_out_R1 : bram_dat_out_R0;
 	assign user_data_dac[0 +: 12] = user_bram_dat_out;
-	assign user_data_dac[12 +: 6] = addr_in;
-	assign user_data_dac[18 +: 14] = {14{1'b0}};
+	assign user_data_dac[12 +: 7] = addr_in;
+	assign user_data_dac[19 +: 13] = {13{1'b0}};
 	assign user_data_ctrl[0] = do_load;
 	assign user_data_ctrl[1] = loader_busy;
 	assign user_data_ctrl[31:2] = {30{1'b0}};
@@ -178,7 +178,9 @@ module RITC_Dual_DAC_Loader( input clk_i,
 	reg [5:0] addr_reg = {6{1'b0}};
 	reg [3:0] bit_counter = {4{1'b0}};
 
+	//< Shift register for RITC0. Bottom bit is in the IOB.
 	reg [10:0] shift_register_R0 = {11{1'b0}};
+	//< Shift register for RITC1. Bottom bit is in the IOB.
 	reg [10:0] shift_register_R1 = {11{1'b0}};
 	
 	(* IOB = "TRUE" *)
@@ -213,7 +215,7 @@ module RITC_Dual_DAC_Loader( input clk_i,
 
 	always @(posedge clk_i) begin
 		if (do_shift) begin
-			dac_din_R0 <= shift_register_R0[1];
+			dac_din_R0 <= shift_register_R0[0];
 			shift_register_R0 <= {1'b0,shift_register_R0[10:1]};
 		end else if (do_load) begin
 			dac_din_R0 <= r0_dac_i[0];
@@ -221,7 +223,7 @@ module RITC_Dual_DAC_Loader( input clk_i,
 		end
 	
 		if (do_shift) begin
-			dac_din_R1 <= shift_register_R1[1];
+			dac_din_R1 <= shift_register_R1[0];
 			shift_register_R1 <= {1'b0,shift_register_R1[10:1]};
 		end else if (do_load) begin
 			dac_din_R1 <= r1_dac_i[0];
