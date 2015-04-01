@@ -74,7 +74,9 @@ module glitc_top_v2(
  		    input 	GCLK,
 		    input 	GRDWR_B,
 		    input 	GSEL_B,
-		    inout [7:0] GAD
+		    inout [7:0] GAD,
+			 
+			 output [4:0] MON
 		    );
 
 	localparam [3:0] VER_BOARDREV = 0;
@@ -380,4 +382,12 @@ module glitc_top_v2(
 	glitc_ila u_ila0(.CONTROL(ila0_control),.CLK(gb_clk),.TRIG0(ila0_debug));
 	glitc_ila u_ila1(.CONTROL(ila1_control),.CLK(SYSCLK),.TRIG0(ila1_debug));
 	glitc_vio u_vio(.CONTROL(vio_control),.CLK(gb_clk),.SYNC_IN(glitc_to_vio),.SYNC_OUT(vio_to_glitc));
+	
+	assign MON[0] = DAC_CLK[0];
+	assign MON[1] = DAC_CLK[1];
+	assign MON[2] = DAC_LATCH[0];
+	assign MON[3] = DAC_LATCH[1];
+	assign MON[4] = 1'b0;
+	
+	
 endmodule
