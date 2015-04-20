@@ -55,7 +55,7 @@ module RITC_full_datapath_v2(
 		input [31:0] user_dat_i,
 		output [31:0] user_dat_o,
 		
-		output [31:0] debug_o
+		output [11:0] debug_o
     );
 
 	// Datapath register map:
@@ -154,5 +154,6 @@ module RITC_full_datapath_v2(
 												.user_wr_i(user_wr_i),
 												.user_dat_i(user_dat_i),
 												.user_dat_o(user_dat_o));
+		assign debug_o = CH0_BYPASS;
 	
 endmodule

@@ -222,7 +222,7 @@ module glitc_top_v2(
 	wire [5:0] REFCLK;
 	wire [5:0] REFCLK_P = {F_CLK_P,E_CLK_P,D_CLK_P,C_CLK_P,B_CLK_P,A_CLK_P};
 	wire [5:0] REFCLK_N = {F_CLK_N,E_CLK_N,D_CLK_N,C_CLK_N,B_CLK_N,A_CLK_N};
-	wire [31:0] datapath_debug;
+	wire [11:0] datapath_debug;
 	RITC_full_datapath_v2    u_full_datapath(.REFCLK_P(REFCLK_P),.REFCLK_N(REFCLK_N),
 													  .CH0_P(A_P),.CH0_N(A_N),
 													  .CH1_P(B_P),.CH1_N(B_N),
@@ -321,7 +321,7 @@ module glitc_top_v2(
 	assign SYNC = glitc_sync;
 
 	wire [70:0] debug_ritc;
-	assign debug_ritc[31:0] = {corr_R0,corr_R1};
+	assign debug_ritc[11:0] = datapath_debug;//{corr_R0,corr_R1};
 
 	// We'll split up the firmware as such:
    // All RITC datapath, GLITC logic, etc. goes in the
