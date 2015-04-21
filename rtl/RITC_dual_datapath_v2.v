@@ -78,7 +78,8 @@ module RITC_dual_datapath_v2(
 		input user_wr_i,
 		input [3:0] user_addr_i,
 		input [31:0] user_dat_i,
-		output [31:0] user_dat_o
+		output [31:0] user_dat_o,
+		output [11:0] debug_o
     );
 	 
 	localparam NUM_CH=6;
@@ -156,8 +157,8 @@ module RITC_dual_datapath_v2(
 	reg vcdl_enable_R1 = 0;
 	//< Continuous VCDL enable, in SYSCLK domain.
 	//reg [1:0] vcdl_enable_SYSCLK = {2{1'b0}};
-	reg [1:0]vcdl_enable_SYSCLK_R0 = 0;
-	reg [1:0] vcdl_enable_SYSCLK_R1 = 0;
+	reg [1:0] vcdl_enable_SYSCLK_R0 = {2{1'b0}};
+	reg [1:0] vcdl_enable_SYSCLK_R1 = {2{1'b0}};
 
 	//< Deserialized data for each bit.
 	wire [47:0] data_deserdes[5:0];
@@ -454,4 +455,10 @@ module RITC_dual_datapath_v2(
 	assign TRAIN_ON = {2{train_disable}};
 
 	assign VCDL = vcdl_out;
+	assign debug_o[0] = vcdl_enable_R0;
+	assign debug_o[1] = vcdl_enable_R1;
+	assign debug_o[2] = vcdl_out[0];
+	assign debug_o[3] = vcdl_out[1];
+	assign debug_o[5:4] = vcdl_enable_SYSCLK_R0;
+	assign debug_o[7:6] = vcdl_enable_SYSCLK_R1;
 endmodule
