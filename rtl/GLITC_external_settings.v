@@ -27,6 +27,8 @@ module GLITC_external_settings(
 		input [31:0]  user_dat_i,
 		output [31:0] user_dat_o,
 		
+		output [70:0] debug_o,
+		
 		input scl_i,
 		output scl_o,
 		output scl_oen_o,
@@ -289,9 +291,21 @@ module GLITC_external_settings(
 
 	ritc_phase_scan_program_V3 rom(.address(pbAddress),.instruction(pbInstruction),
 											 .enable(pbRomEnable),
-											 .bram_we_i(bram_we),.bram_adr_i(bram_address_reg),
+											 .bram_we_i(bram_we && bram_we_enable),.bram_adr_i(bram_address_reg),
 											 .bram_dat_i(bram_data_reg),.bram_dat_o(bram_readback),
-											 .bram_rd_i(!bram_we && bram_we_enable),.clk(user_clk_i));
-	
+											 .bram_rd_i(1'b1),.clk(user_clk_i));
+
+	assign debug_o[0 +: 10] = pbAddress;
+	assign debug_o[10 +: 8] = (pb_write) ? pb_outport : pb_inport;
+	assign debug_o[18] = pb_write;
+	assign debug_o[19] = pb_read;
+	assign debug_o[20] = processor_reset;
+	assign debug_o[21] = bram_we_enable;
+	assign debug_o[22] = scl_i;
+	assign debug_o[23] = sda_i;
+	assign debug_o[24] = pb_updates_pending;
+	assign debug_o[25] = pb_error_pending;
+	assign debug_o[26] = pb_initialized;
+	assign debug_o[27 +: 18] = pbInstruction;
 	
 endmodule

@@ -222,11 +222,16 @@ module RITC_dual_phase_scanner_v3(
 	
 	reg processor_reset = 0;
 	reg bram_we_enable = 0;
-	reg [11:0] bram_address_reg = {12{1'b0}};
+	reg [9:0] bram_address_reg = {10{1'b0}};
 	reg [17:0] bram_data_reg = {18{1'b0}};
 	reg bram_we = 0;
 	wire [17:0] bram_readback;
-	assign pb_bram_data = {processor_reset,bram_we_enable,bram_address_reg,bram_readback};
+	// bram_readback = pb_bram_data[17:0]
+	// bram_address_reg = pb_bram_data[27:18]
+	// pb_bram_data[29:28] are 00
+	// bram_we = pb_bram_data[30]
+	// processor_reset = pb_bram_data[31]
+	assign pb_bram_data = {processor_reset,bram_we_enable,{2{1'b0}},bram_address_reg,bram_readback};
 	assign pb_control_data = {32{1'b0}};
 
 	reg [23:0] counter = {24{1'b0}};
@@ -253,7 +258,7 @@ module RITC_dual_phase_scanner_v3(
 		if (sel_pbdata && user_wr_i) bram_we_enable <= user_dat_i[30];
 		if (sel_pbdata && user_wr_i) begin
 			bram_data_reg <= user_dat_i[0 +: 18];
-			bram_address_reg <= user_dat_i[18 +: 12];
+			bram_address_reg <= user_dat_i[18 +: 10];
 		end
 		if (sel_pbdata && user_wr_i) bram_we <= 1;
 		else bram_we <= 0;
@@ -396,9 +401,9 @@ module RITC_dual_phase_scanner_v3(
 
 	ritc_phase_scan_program_V3 rom(.address(pbAddress),.instruction(pbInstruction),
 											 .enable(pbRomEnable),
-											 .bram_we_i(bram_we),.bram_adr_i(bram_address_reg),
+											 .bram_we_i(bram_we && bram_we_enable),.bram_adr_i(bram_address_reg),
 											 .bram_dat_i(bram_data_reg),.bram_dat_o(bram_readback),
-											 .bram_rd_i(!bram_we && bram_we_enable),.clk(user_clk_i));
+											 .bram_rd_i(1'b1),.clk(user_clk_i));
 
 
 				
