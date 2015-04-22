@@ -334,8 +334,8 @@ module RITC_dual_datapath_v2(
 		vcdl_out[0] <={SYNC & (vcdl_enable_SYSCLK_R0[1] || vcdl_pulse_seen_R0)};
 		vcdl_enable_SYSCLK_R0 <= { vcdl_enable_SYSCLK_R0[0], vcdl_enable_R0};
 		
-		vcdl_out[1] <={SYNC & (vcdl_enable_SYSCLK_R0[1] || vcdl_pulse_seen_R1)};
-		vcdl_enable_SYSCLK_R1 <= { vcdl_enable_SYSCLK_R0[0], vcdl_enable_R1};
+		vcdl_out[1] <={SYNC & (vcdl_enable_SYSCLK_R1[1] || vcdl_pulse_seen_R1)};
+		vcdl_enable_SYSCLK_R1 <= { vcdl_enable_SYSCLK_R1[0], vcdl_enable_R1};
 		
 		train_disable_SYSCLK <= train_disable;
 	end

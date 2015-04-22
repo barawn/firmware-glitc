@@ -153,7 +153,8 @@ module RITC_full_datapath_v2(
 												.user_addr_i(user_addr_i),
 												.user_wr_i(user_wr_i),
 												.user_dat_i(user_dat_i),
-												.user_dat_o(user_dat_o));
-		assign debug_o = CH0_BYPASS;
+												.user_dat_o(user_dat_o),
+												.debug_o(debug_o));
+		//assign debug_o = CH0_BYPASS;
 	
 endmodule
