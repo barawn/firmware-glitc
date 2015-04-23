@@ -78,7 +78,8 @@ module RITC_dual_datapath_v2(
 		input user_wr_i,
 		input [3:0] user_addr_i,
 		input [31:0] user_dat_i,
-		output [31:0] user_dat_o
+		output [31:0] user_dat_o,
+		output [11:0] debug_o
     );
 	 
 	localparam NUM_CH=6;
@@ -146,13 +147,18 @@ module RITC_dual_datapath_v2(
 	//< VCDL load for R1.
 	reg r1_vcdl_delay_load = 0;
 	//< Initiate single VCDL pulse.
-	reg vcdl_pulse = 0;
+	reg vcdl_pulse_R0 = 0;
+	reg vcdl_pulse_R1 = 0;
 	//< VCDL pulse signal, in SYSCLK domain.
-	wire vcdl_pulse_flag_SYSCLK;
+	wire vcdl_pulse_flag_SYSCLK_R0;
+	wire vcdl_pulse_flag_SYSCLK_R1;
 	//< Continuous VCDL.
-	reg vcdl_enable = 0;
+	reg vcdl_enable_R0 = 0;
+	reg vcdl_enable_R1 = 0;
 	//< Continuous VCDL enable, in SYSCLK domain.
-	reg [1:0] vcdl_enable_SYSCLK = {2{1'b0}};
+	//reg [1:0] vcdl_enable_SYSCLK = {2{1'b0}};
+	reg [1:0] vcdl_enable_SYSCLK_R0 = {2{1'b0}};
+	reg [1:0] vcdl_enable_SYSCLK_R1 = {2{1'b0}};
 
 	//< Deserialized data for each bit.
 	wire [47:0] data_deserdes[5:0];
@@ -182,8 +188,10 @@ module RITC_dual_datapath_v2(
 	// DPCTRL1[12:8] = R1 VCDL delay register
 	// DPCTRL1[13]   = R1 VCDL delay load
 	// DPCTRL1[21:16]= Latched reference clocks.
-	// DPCTRL1[30]	  = Single VCDL pulse.
-	// DPCTRL1[31]	  = Continuous VCDL.
+	// DPCTRL1[28]   = R0 Single VCDL pulse.
+	// DPCTRL1[29]   = R0 Continuous VCDL.
+	// DPCTRL1[30]	  = R1 Single VCDL pulse.
+	// DPCTRL1[31]	  = R1 Continuous VCDL.
 	// 
 	// DPTRAINING[31] 	= Disable training.
 	// DPTRAINING[30] 	= BITSLIP the selected channel.
@@ -262,8 +270,10 @@ module RITC_dual_datapath_v2(
 			r0_vcdl_delay_load <= user_dat_i[5];
 			r1_vcdl_delay <= user_dat_i[12:8];
 			r1_vcdl_delay_load <= user_dat_i[13];
-			vcdl_pulse <= user_dat_i[30];
-			vcdl_enable <= user_dat_i[31];
+			vcdl_pulse_R0 <= user_dat_i[28];
+			vcdl_enable_R0 <= user_dat_i[29];
+			vcdl_pulse_R1 <= user_dat_i[30];
+			vcdl_enable_R1 <= user_dat_i[31];
 		end else begin
 			r0_vcdl_delay_load <= 0;
 			r1_vcdl_delay_load <= 0;
@@ -290,21 +300,43 @@ module RITC_dual_datapath_v2(
 	end
 
 	// SYSCLK logic.
-	flag_sync u_vcdl_pulse_sync(.in_clkA(vcdl_pulse),.clkA(user_clk_i),
-											.out_clkB(vcdl_pulse_SYSCLK), .clkB(SYSCLK));
-	reg vcdl_pulse_seen = 0;
+	flag_sync u_vcdl_pulse_sync_R0(.in_clkA(vcdl_pulse_R0),.clkA(user_clk_i),
+											.out_clkB(vcdl_pulse_SYSCLK_R0), .clkB(SYSCLK));
+	flag_sync u_vcdl_pulse_sync_R1(.in_clkA(vcdl_pulse_R1),.clkA(user_clk_i),
+											.out_clkB(vcdl_pulse_SYSCLK_R1), .clkB(SYSCLK));										
+	
+	reg vcdl_pulse_seen_R0 = 0;
+	reg vcdl_pulse_seen_R1 = 0;
 	(* IOB = "TRUE" *)
 	reg [1:0] vcdl_out = {2{1'b0}};
+	//reg vcdl_out_R0 = 0;
+	//reg vcdl_out_R1 = 1'b1;
 
-	always @(posedge SYSCLK) begin
-		if (vcdl_pulse_SYSCLK) vcdl_pulse_seen <= 1;
-		else if (SYNC) vcdl_pulse_seen <= 0;
+	//always @(posedge SYSCLK) begin
+		//if (vcdl_pulse_SYSCLK) vcdl_pulse_seen <= 1;
+		//else if (SYNC) vcdl_pulse_seen <= 0;
 		
 		// This is still a prototype for the full VCDL output.
-		vcdl_out <= {2{SYNC && (vcdl_enable_SYSCLK[1] || vcdl_pulse_seen) }};
+		//vcdl_out <= {2{SYNC && (vcdl_enable_SYSCLK[1] || vcdl_pulse_seen) }};
 
-		vcdl_enable_SYSCLK <= { vcdl_enable_SYSCLK[0], vcdl_enable };
+		//vcdl_enable_SYSCLK <= { vcdl_enable_SYSCLK[0], vcdl_enable };
 	
+		//train_disable_SYSCLK <= train_disable;
+	//end
+	
+	always @(posedge SYSCLK) begin
+		if (vcdl_pulse_SYSCLK_R0) vcdl_pulse_seen_R0 <= 1;
+		else if (SYNC) vcdl_pulse_seen_R0 <= 0;
+		
+		if (vcdl_pulse_SYSCLK_R1) vcdl_pulse_seen_R1 <= 1;
+		else if (SYNC) vcdl_pulse_seen_R1 <= 0;
+		
+		vcdl_out[0] <={SYNC & (vcdl_enable_SYSCLK_R0[1] || vcdl_pulse_seen_R0)};
+		vcdl_enable_SYSCLK_R0 <= { vcdl_enable_SYSCLK_R0[0], vcdl_enable_R0};
+		
+		vcdl_out[1] <={SYNC & (vcdl_enable_SYSCLK_R1[1] || vcdl_pulse_seen_R1)};
+		vcdl_enable_SYSCLK_R1 <= { vcdl_enable_SYSCLK_R1[0], vcdl_enable_R1};
+		
 		train_disable_SYSCLK <= train_disable;
 	end
 
@@ -398,7 +430,7 @@ module RITC_dual_datapath_v2(
 	assign DPCTRL0[1] = fifo_enable;
 	assign DPCTRL0[0] = 1'b0;
 	// DPCTRL1
-	assign DPCTRL1 = {vcdl_enable,{7{1'b0}},refclk_q,{3{1'b0}},r1_vcdl_delay,{3{1'b0}},r0_vcdl_delay};
+	assign DPCTRL1 = {vcdl_enable_R0,vcdl_enable_R1,{6{1'b0}},refclk_q,{3{1'b0}},r1_vcdl_delay,{3{1'b0}},r0_vcdl_delay};
 	// DPTRAINING
 	assign DPTRAINING = {train_disable,{9{1'b0}},train_bit_select,{8{1'b0}},train_sync};
 	// DPCOUNTER
@@ -423,4 +455,10 @@ module RITC_dual_datapath_v2(
 	assign TRAIN_ON = {2{train_disable}};
 
 	assign VCDL = vcdl_out;
+	assign debug_o[0] = vcdl_enable_R0;
+	assign debug_o[1] = vcdl_enable_R1;
+	assign debug_o[2] = vcdl_out[0];
+	assign debug_o[3] = vcdl_out[1];
+	assign debug_o[5:4] = vcdl_enable_SYSCLK_R0;
+	assign debug_o[7:6] = vcdl_enable_SYSCLK_R1;
 endmodule
