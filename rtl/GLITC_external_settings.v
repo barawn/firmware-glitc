@@ -300,7 +300,7 @@ module GLITC_external_settings(
 														  .interrupt(1'b0), .sleep(1'b0),
 														  .reset(processor_reset),.clk(user_clk_i));
 
-	ritc_phase_scan_program_V3 rom(.address(pbAddress),.instruction(pbInstruction),
+	glitc_external_settings_rom rom(.address(pbAddress),.instruction(pbInstruction),
 											 .enable(pbRomEnable),
 											 .bram_we_i(bram_we && bram_we_enable),.bram_adr_i(bram_address_reg),
 											 .bram_dat_i(bram_data_reg),.bram_dat_o(bram_readback),
