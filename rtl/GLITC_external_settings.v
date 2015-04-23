@@ -202,14 +202,15 @@ module GLITC_external_settings(
 	wire [7:0] pb_dac_mux_byte = (pb_port[0]) ? pb_dac_mux[15:8] : pb_dac_mux[7:0];
 	//// Attenuator multiplexing.
 	wire [5:0] pb_atten_settings[7:0];
-	assign pb_atten_settings[0] = atten_settings[0];
-	assign pb_atten_settings[1] = atten_settings[1];
-	assign pb_atten_settings[2] = atten_settings[2];
+	//// Reverse the first 3 attenuator inputs into the PicoBlaze.
+	bit_reverser #(.WIDTH(6)) u_reverse_atten_0(atten_settings[0], pb_atten_settings[0]);
+	bit_reverser #(.WIDTH(6)) u_reverse_atten_1(atten_settings[1], pb_atten_settings[1]);
+	bit_reverser #(.WIDTH(6)) u_reverse_atten_2(atten_settings[2], pb_atten_settings[2]);
 	assign pb_atten_settings[3] = atten_settings[3];
 	assign pb_atten_settings[4] = atten_settings[4];
 	assign pb_atten_settings[5] = atten_settings[5];
-	assign pb_atten_settings[6] = atten_settings[2];
-	assign pb_atten_settings[7] = atten_settings[3];
+	assign pb_atten_settings[6] = pb_atten_settings[2];
+	assign pb_atten_settings[7] = pb_atten_settings[3];
 	wire [7:0] pb_atten_mux_byte = {{2{1'b0}},pb_atten_settings[pb_port[2:0]]};
 	//// Control multiplexing.
 	wire [7:0] pb_ctl_bytes[3:0];
@@ -253,17 +254,27 @@ module GLITC_external_settings(
 		end else begin
 			if (pb_write && pb_sel_ctl && pb_port[1:0] == 2'b10) atten_update_pending <= atten_update_pending ^ pb_outport[5:0];
 		end
+		// PicoBlaze control register:
+		// READ: bit0: updates are pending
+		//       bit1: if 0 and internal initialization set, reinitialize
+		//       bit2: if 0 and internal error buffer has errors, ready for next error
+		// WRITE:
+		//       bit1: if 1, set pb_initialized
+		//       bit2: if 1, set pb_error_pending
+		//       bit7: if 1, clear pb_initialized and pb_error_pending (at reset only)
 		if (user_sel_i && user_wr_i && user_addr_i == 4'hE) begin
 			if (user_dat_i[8]) pb_error_pending <= 0;
 			if (user_dat_i[16]) pb_initialized <= 0;
 			pb_pause_updates <= user_dat_i[30];
 			if (user_dat_i[8]) pb_error_message <= {8{1'b0}};
 		end else if (pb_write && pb_sel_ctl && pb_port[1:0] == 2'b00) begin
-			pb_error_pending <= pb_outport[1];
-			pb_initialized <= pb_outport[2];
+			if (pb_outport[1]) pb_error_pending <= 1;
+			else if (pb_outport[7]) pb_error_pending <= 0;
+			if (pb_outport[2]) pb_initialized <= 1;
+			else if (pb_outport[7]) pb_initialized <= 0; 
 		end else if (pb_write && pb_sel_ctl && pb_port[1:0] == 2'b11) begin
 			pb_error_message <= pb_outport;
-		end
+		end 
 		if (user_sel_i && user_wr_i && user_addr_i == 4'hF) begin
 			processor_reset <= user_dat_i[31];
 			bram_we_enable <= user_dat_i[30];
