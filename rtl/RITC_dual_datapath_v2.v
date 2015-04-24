@@ -71,8 +71,9 @@ module RITC_dual_datapath_v2(
 		output [5:0] CLK_B_Q,
 		// Global sync input
 		input SYNC,
+		// Input buffer disable
+		output disable_o,
 		// Interface (both IDELAY and datapath)
-		input rst_i,
 		input user_clk_i,
 		input user_sel_i,
 		input user_wr_i,
@@ -121,6 +122,8 @@ module RITC_dual_datapath_v2(
 	reg fifo_reset = 0;
 	//< IOFIFO enable
 	reg fifo_enable = 0;
+	//< Input buffer disable.
+	reg datapath_disable = 1;
 
 	//< Latched REFCLK.
 	wire [5:0] refclk_q;
@@ -182,6 +185,7 @@ module RITC_dual_datapath_v2(
 	// DPCTRL0[2] = SERDES Reset.
 	// DPCTRL0[3] = DELAYCTRL Reset.
 	// DPCTRL0[4] = DELAYCTRL Ready.
+	// DPCTRL0[5] = Datapath disable (disable input buffers).
 	//
 	// DPCTRL1[4:0]  = R0 VCDL delay register
 	// DPCTRL1[5]    = R0 VCDL delay load
@@ -259,6 +263,7 @@ module RITC_dual_datapath_v2(
 			fifo_enable <= user_dat_i[1];
 			serdes_reset <= user_dat_i[2];
 			delayctrl_reset <= user_dat_i[3];
+			datapath_disable <= user_dat_i[4];
 		end else begin
 			fifo_reset <= 0;
 			serdes_reset <= 0;
@@ -424,13 +429,14 @@ module RITC_dual_datapath_v2(
 
 	// Register definitions.
 	// DPCTRL0
-	assign DPCTRL0[31:5] = {27{1'b0}};
+	assign DPCTRL0[31:6] = {26{1'b0}};
+	assign DPCTRL0[5] = datapath_disable;
 	assign DPCTRL0[4] = delayctrl_ready;
 	assign DPCTRL0[3:2] = 2'b00;
 	assign DPCTRL0[1] = fifo_enable;
 	assign DPCTRL0[0] = 1'b0;
 	// DPCTRL1
-	assign DPCTRL1 = {vcdl_enable_R0,vcdl_enable_R1,{6{1'b0}},refclk_q,{3{1'b0}},r1_vcdl_delay,{3{1'b0}},r0_vcdl_delay};
+	assign DPCTRL1 = {vcdl_enable_R1,1'b0,vcdl_enable_R0,{7{1'b0}},refclk_q,{3{1'b0}},r1_vcdl_delay,{3{1'b0}},r0_vcdl_delay};
 	// DPTRAINING
 	assign DPTRAINING = {train_disable,{9{1'b0}},train_bit_select,{8{1'b0}},train_sync};
 	// DPCOUNTER
@@ -461,4 +467,6 @@ module RITC_dual_datapath_v2(
 	assign debug_o[3] = vcdl_out[1];
 	assign debug_o[5:4] = vcdl_enable_SYSCLK_R0;
 	assign debug_o[7:6] = vcdl_enable_SYSCLK_R1;
+
+	assign disable_o = datapath_disable;
 endmodule

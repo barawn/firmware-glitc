@@ -70,16 +70,8 @@ module RITC_full_datapath_v2(
 	wire [11:0] R_BYP[1:0][2:0];
 	wire [5:0] R_CLK;
 	wire [5:0] R_CLK_BYP;
-	
-	reg datapath_disable = 1;
-	reg datapath_reset = 0;
-	wire sel_idelay = user_addr_i[1];
-	wire sel_datapath = user_addr_i[1:0] == 2'b01;
-	always @(posedge user_clk_i) begin
-		if (user_wr_i && (user_addr_i[1:0] == 2'b00) && user_sel_i) datapath_disable <= user_dat_i[0];
-		if (user_wr_i && (user_addr_i[1:0] == 2'b00) && user_sel_i) datapath_reset <= user_dat_i[1];
-		else datapath_reset <= 0;
-	end
+	//< Disable for input buffers.
+	wire datapath_disable;
 	
 	// Input buffers for RITC signals.
 	RITC_dual_input_buffers u_inputs_R0(.disable_i(datapath_disable),
@@ -146,8 +138,9 @@ module RITC_full_datapath_v2(
 												.CH3_Q(CH3_BYPASS),
 												.CH4_Q(CH4_BYPASS),
 												.CH5_Q(CH5_BYPASS),
+												// Datapath disable output
+												.disable_o(datapath_disable),
 												// Interface (both IDELAY and datapath)
-												.rst_i(datapath_reset),
 												.user_clk_i(user_clk_i),
 												.user_sel_i(user_sel_i),
 												.user_addr_i(user_addr_i),
