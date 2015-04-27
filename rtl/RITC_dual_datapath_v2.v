@@ -263,7 +263,7 @@ module RITC_dual_datapath_v2(
 			fifo_enable <= user_dat_i[1];
 			serdes_reset <= user_dat_i[2];
 			delayctrl_reset <= user_dat_i[3];
-			datapath_disable <= user_dat_i[4];
+			datapath_disable <= user_dat_i[5];
 		end else begin
 			fifo_reset <= 0;
 			serdes_reset <= 0;
@@ -388,7 +388,6 @@ module RITC_dual_datapath_v2(
 													.p_bufr_o(refclk_bufr[j_ch]),
 													.p_q_o(refclk_q[j_ch]),
 													.n_q_o(CLK_B_Q[j_ch]));													
-
 			assign clock_idelay_load[j_ch] = 
 				delay_load && (delay_bit_select[3:0] == 4'hF) && (delay_bit_select[6:4] == j_ch);
 		end

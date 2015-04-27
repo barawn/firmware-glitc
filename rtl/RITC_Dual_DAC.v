@@ -86,10 +86,12 @@ module RITC_Dual_DAC(
 		if (servo_update_i) servo_load <= 1;
 		else if (!loader_busy) servo_load <= 0;		
 	end
-	function [11:0] scramble;
+	
+	//% Format the input for the RITC DAC: LSB first, inverted bits.
+	function [11:0] ritc_dac_format;
 			 input [11:0] val;
 			 begin
-				scramble = {val[0],val[1],val[2],val[3],val[4],val[5],val[6],val[7],val[8],val[9],val[10],val[11]};
+				ritc_dac_format = {~val[0],~val[1],~val[2],~val[3],~val[4],~val[5],~val[6],~val[7],~val[8],~val[9],~val[10],~val[11]};
 			 end
 	endfunction
 	
@@ -128,7 +130,7 @@ module RITC_Dual_DAC(
 							  .ADDRB({{4{1'b0}},loader_addr}),.DOB(loader_dat_out_R1),
 							  .RSTA(1'b0),.RSTB(1'b0));
 	RITC_Dual_DAC_Loader u_loader(.clk_i(clk_i),.load_i(do_load || servo_load),.busy_o(loader_busy),.addr_o(loader_addr),
-											.rd_o(loader_rd),.r0_dac_i(scramble(loader_dat_out_R0)),.r1_dac_i(scramble(loader_dat_out_R1)),
+											.rd_o(loader_rd),.r0_dac_i(ritc_dac_format(loader_dat_out_R0)),.r1_dac_i(ritc_dac_format(loader_dat_out_R1)),
 											.DAC_DIN(DAC_DIN),.DAC_CLOCK(DAC_CLOCK),.DAC_LATCH(DAC_LATCH));
 	
 	assign user_bram_dat_out = (addr_in[6]) ? bram_dat_out_R1 : bram_dat_out_R0;
