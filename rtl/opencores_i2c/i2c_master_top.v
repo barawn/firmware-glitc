@@ -106,7 +106,7 @@ module i2c_master_top(
 	output       wb_inta_o;    // interrupt request signal output
    output 		 wb_rty_o;
 	output		 wb_err_o;
-	output [4:0] debug_o;
+	output [5:0] debug_o;
 	input [0:0]	 wb_sel_i;
 	wire [WB_LATENCY:0] wb_cycstb_pipe;
 	assign wb_cycstb_pipe[WB_LATENCY] = wb_cyc_i && wb_stb_i;

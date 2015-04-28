@@ -85,7 +85,7 @@ module i2c_master_byte_ctrl (
 	input ena;     // core enable signal
 
 	input [15:0] clk_cnt; // 4x SCL
-	output [4:0] debug;
+	output [5:0] debug;
 	// control inputs
 	input       start;
 	input       stop;
@@ -161,7 +161,8 @@ module i2c_master_byte_ctrl (
 		.scl_oen ( scl_oen  ),
 		.sda_i   ( sda_i    ),
 		.sda_o   ( sda_o    ),
-		.sda_oen ( sda_oen  )
+		.sda_oen ( sda_oen  ),
+		.clk_en_o( debug[5] )
 	);
 
 	// generate go-signal
@@ -342,5 +343,5 @@ module i2c_master_byte_ctrl (
 
 	      endcase
 	  end
-	assign debug = c_state;
+	assign debug[4:0] = c_state;
 endmodule

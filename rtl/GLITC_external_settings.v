@@ -287,11 +287,13 @@ module GLITC_external_settings(
 		pb_updates_pending <= (|dac_update_pending) | (|atten_update_pending); 
 	end
 
+	wire [5:0] i2c_debug;
 	i2c_master_top #(.WB_LATENCY(0),.ARST_LVL(1'b1)) i2c(.wb_clk_i(user_clk_i),.wb_rst_i(1'b0),
 							 .wb_adr_i(i2c_adr),.wb_cyc_i(i2c_cyc),.wb_stb_i(i2c_stb),
 							 .wb_dat_i(i2c_dat_i),.wb_dat_o(i2c_dat_o),.wb_we_i(i2c_we),
 							 .scl_pad_i(scl_i),.scl_pad_o(scl_o),.scl_padoen_o(scl_oen_o),
-							 .sda_pad_i(sda_i),.sda_pad_o(sda_o),.sda_padoen_o(sda_oen_o));
+							 .sda_pad_i(sda_i),.sda_pad_o(sda_o),.sda_padoen_o(sda_oen_o),
+							 .debug_o(i2c_debug));
 							 
 	kcpsm6 processor(.address(pbAddress),.instruction(pbInstruction),
 														  .bram_enable(pbRomEnable),.in_port(pb_inport),
@@ -318,5 +320,5 @@ module GLITC_external_settings(
 	assign debug_o[25] = pb_error_pending;
 	assign debug_o[26] = pb_initialized;
 	assign debug_o[27 +: 18] = pbInstruction;
-	
+	assign debug_o[45 +: 6] = i2c_debug;
 endmodule

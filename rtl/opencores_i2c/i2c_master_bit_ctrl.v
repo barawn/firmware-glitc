@@ -161,7 +161,8 @@ module i2c_master_bit_ctrl (
     output reg        scl_oen,  // i2c clock line output enable (active low)
     input             sda_i,    // i2c data line input
     output            sda_o,    // i2c data line output
-    output reg        sda_oen   // i2c data line output enable (active low)
+    output reg        sda_oen,  // i2c data line output enable (active low)
+	 output				 clk_en_o  // i2c bit clock enable output
 );
 
 	initial begin
@@ -584,5 +585,6 @@ module i2c_master_bit_ctrl (
     // assign scl and sda output (always gnd)
     assign scl_o = 1'b0;
     assign sda_o = 1'b0;
-
+    
+	 assign clk_en_o = clk_en;
 endmodule
