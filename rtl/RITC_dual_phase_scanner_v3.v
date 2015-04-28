@@ -219,7 +219,7 @@ module RITC_dual_phase_scanner_v3(
 	reg [1:0] do_scan_reg_delayed = {2{1'b0}};
 	reg [7:0] scan_store = {8{1'b0}};
 	assign do_scan = do_scan_reg;
-	
+		
 	reg processor_reset = 0;
 	reg bram_we_enable = 0;
 	reg [9:0] bram_address_reg = {10{1'b0}};
@@ -267,7 +267,7 @@ module RITC_dual_phase_scanner_v3(
 		if (sel_command && user_wr_i) command_reg <= user_dat_i[15:0];
 		else begin
 			if (pb_sel_command && pb_write && !pb_port[0]) command_reg[7:0] <= pb_outport;
-			if (pb_sel_command && pb_write && pb_port[0]) command_reg[7:0] <= pb_outport;
+			if (pb_sel_command && pb_write && pb_port[0]) command_reg[15:8] <= pb_outport;
 		end
 		
 		// Scan register input.
@@ -277,7 +277,7 @@ module RITC_dual_phase_scanner_v3(
 
 		// Watch for PSDONE going high after a phase change requested.
 		if (PSDONE) psdone_seen <= 1;
-		else if (pb_sel_scan && pb_write && pb_outport[2]) psdone_seen <= 0;
+		else if (pb_sel_scan && pb_write && pb_outport[0]) psdone_seen <= 0;
 
 		// Capture scan results when PSDONE goes high.
 		do_scan_reg <= (PSDONE && !psdone_seen);
@@ -390,7 +390,8 @@ module RITC_dual_phase_scanner_v3(
 	assign debug_o[27] = do_scan_reg_delayed[1]; // 1 when scans are valid
 	assign debug_o[28] = processor_reset;
 	assign debug_o[29] = servo_update_o;
-	assign debug_o[30 +: 32] = pb_debug;
+	assign debug_o[30] = scan_done_reg;
+	assign debug_o[31 +: 32] = pb_debug;
 	kcpsm6 processor(.address(pbAddress),.instruction(pbInstruction),
 														  .bram_enable(pbRomEnable),.in_port(pb_inport),
 														  .out_port(pb_outport),.port_id(pb_port),

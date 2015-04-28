@@ -80,7 +80,8 @@ module GLITC_clock_generator(
 					 .CLKOUT3_DIVIDE(6),				// dataclk_div2	162.5 MHz
 					 .CLKOUT3_PHASE(30),				// dataclk_div2	t += ~500 ps
 					 .CLKOUT4_DIVIDE(3),				// sysclkx2			325 MHz
-					 .CLKOUT4_PHASE(0)) u_sysclk_mmcm(.CLKIN1(sysclk_in_bufg),
+					 .CLKOUT4_PHASE(0),
+					 .CLKOUT1_USE_FINE_PS("TRUE")) u_sysclk_mmcm(.CLKIN1(sysclk_in_bufg),
 																 .CLKIN2(sysclk_mult),
 																 .CLKINSEL(sysclk_mult_sel),
 																 .CLKFBIN(sysclk_bufg),
