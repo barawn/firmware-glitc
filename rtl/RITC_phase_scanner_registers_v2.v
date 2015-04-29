@@ -37,6 +37,16 @@ module RITC_phase_scanner_registers_v2(
 						  .out_clkB(scan_request_CLK_PS_flag_out),.clkB(CLK_PS));
 	always @(posedge CLK_PS) scan_request_CLK_PS <= scan_request_CLK_PS_flag_out;
 
+	reg vcdl_reg = 0;
+	(* SHREG_EXTRACT = "NO" *)
+	reg [1:0] vcdl_reg_user_clk = {2{1'b0}};
+	always @(posedge CLK_PS) begin
+		vcdl_reg <= VCDL_IN;
+	end
+	always @(posedge user_clk_i) begin
+		vcdl_reg_user_clk <= {vcdl_reg_user_clk[0], vcdl_reg};
+	end
+
 	generate
 		genvar i,j;
 		for (i=0;i<3;i=i+1) begin : CHL
@@ -60,4 +70,6 @@ module RITC_phase_scanner_registers_v2(
 	assign CH0_Q = CH_OUT[0];
 	assign CH1_Q = CH_OUT[1];
 	assign CH2_Q = CH_OUT[2];
+
+	assign VCDL_Q = vcdl_reg_user_clk[1];
 endmodule

@@ -101,7 +101,7 @@ module RITC_dual_phase_scanner_v3(
    //% Final multiplexed bit register.
    reg  [1:0]     signal_scan = {2{1'b0}};
    //% Reregistered VCDL scan.
-   reg  [1:0]     vcdl_scan = 0;
+   reg  [1:0]     vcdl_bit_scan = 0;
 
    /////////////////////////////////////////////////////////////////////////////
    // CLOCK AND BIT MULTIPLEXING : LOGIC                                      //
@@ -142,7 +142,7 @@ module RITC_dual_phase_scanner_v3(
       signal_scan[1] <= bit_demuxed[1][select_R1[3:0]];
 
       // Store VCDL scan too. (It's just a straight store, so store both in 1 command)
-      vcdl_scan <= VCDL_Q;
+      vcdl_bit_scan <= VCDL_Q;
    end
 	// The original PicoBlaze phase scanner used just 8 8-bit registers. We have significantly
 	// more than that (16 32-bit registers) but for the most part we can keep things similar:
@@ -285,11 +285,11 @@ module RITC_dual_phase_scanner_v3(
 		if (do_scan_reg_delayed[1]) begin
 			scan_store[0] <= clock_scan[0];
 			scan_store[1] <= signal_scan[0];
-			scan_store[2] <= vcdl_scan[0];
+			scan_store[2] <= vcdl_bit_scan[0];
 			scan_store[3] <= 0;
 			scan_store[4] <= clock_scan[1];
 			scan_store[5] <= signal_scan[1];
-			scan_store[6] <= vcdl_scan[1];
+			scan_store[6] <= vcdl_bit_scan[1];
 			scan_store[7] <= 0;
 		end
 		
@@ -383,10 +383,10 @@ module RITC_dual_phase_scanner_v3(
 	assign debug_o[20] = timer_flag;
 	assign debug_o[21] = clock_scan[0];
 	assign debug_o[22] = signal_scan[0];
-	assign debug_o[23] = vcdl_scan[0];
+	assign debug_o[23] = vcdl_bit_scan[0];
 	assign debug_o[24] = clock_scan[1];
 	assign debug_o[25] = signal_scan[1];
-	assign debug_o[26] = vcdl_scan[1];
+	assign debug_o[26] = vcdl_bit_scan[1];
 	assign debug_o[27] = do_scan_reg_delayed[1]; // 1 when scans are valid
 	assign debug_o[28] = processor_reset;
 	assign debug_o[29] = servo_update_o;

@@ -81,10 +81,10 @@ module glitc_top_v2(
 
 	localparam [3:0] VER_BOARDREV = 0;
 	localparam [3:0] VER_MONTH = 4;
-	localparam [7:0] VER_DAY = 28;
+	localparam [7:0] VER_DAY = 29;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 1;
-	localparam [7:0] VER_REV = 11;
+	localparam [7:0] VER_REV = 14;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -222,6 +222,7 @@ module glitc_top_v2(
 	wire [5:0] REFCLK;
 	wire [5:0] REFCLK_P = {F_CLK_P,E_CLK_P,D_CLK_P,C_CLK_P,B_CLK_P,A_CLK_P};
 	wire [5:0] REFCLK_N = {F_CLK_N,E_CLK_N,D_CLK_N,C_CLK_N,B_CLK_N,A_CLK_N};
+	wire [1:0] VCDL_Q_PS;
 	wire [11:0] datapath_debug;
 	RITC_full_datapath_v2    u_full_datapath(.REFCLK_P(REFCLK_P),.REFCLK_N(REFCLK_N),
 													  .CH0_P(A_P),.CH0_N(A_N),
@@ -249,6 +250,7 @@ module glitc_top_v2(
 													  .CH4_BYPASS(R1_BYPASS[1]),
 													  .CH5_BYPASS(R1_BYPASS[2]),
 													  .REFCLK_BYPASS(REFCLK_BYPASS),
+													  .VCDL_Q_PS(VCDL_Q_PS),
 													  
 													  .SYNC(SYNC),
 													  .VCDL(VCDL),
@@ -289,6 +291,7 @@ module glitc_top_v2(
 															 .CH4_SCAN(R1_BYPASS[1]),
 															 .CH5_SCAN(R1_BYPASS[2]),
 															 .CLK_SCAN(REFCLK_BYPASS),
+															 .VCDL_SCAN(VCDL_Q_PS),
 															 .CLK_PS(SYSCLK_DIV2_PS),
 															 .phase_control_out(phase_ctrl_out),
 															 .phase_control_in(phase_ctrl_in),
@@ -321,7 +324,7 @@ module glitc_top_v2(
 	assign SYNC = glitc_sync;
 
 	wire [70:0] debug_ritc;
-	assign debug_ritc[11:0] = datapath_debug;//{corr_R0,corr_R1};
+	assign debug_ritc = {corr_R0, corr_R1};
 
 	// We'll split up the firmware as such:
    // All RITC datapath, GLITC logic, etc. goes in the

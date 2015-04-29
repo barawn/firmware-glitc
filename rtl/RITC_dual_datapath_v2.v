@@ -64,6 +64,8 @@ module RITC_dual_datapath_v2(
 		output [11:0] CH3_Q,
 		output [11:0] CH4_Q,
 		output [11:0] CH5_Q,
+		// VCDL duplicates.
+		output [1:0] VCDL_Q_PS,
 		// Clock and duplicate inputs
 		input [5:0] CLK,
 		input [5:0] CLK_B,
@@ -312,22 +314,6 @@ module RITC_dual_datapath_v2(
 	
 	reg vcdl_pulse_seen_R0 = 0;
 	reg vcdl_pulse_seen_R1 = 0;
-	(* IOB = "TRUE" *)
-	reg [1:0] vcdl_out = {2{1'b0}};
-	//reg vcdl_out_R0 = 0;
-	//reg vcdl_out_R1 = 1'b1;
-
-	//always @(posedge SYSCLK) begin
-		//if (vcdl_pulse_SYSCLK) vcdl_pulse_seen <= 1;
-		//else if (SYNC) vcdl_pulse_seen <= 0;
-		
-		// This is still a prototype for the full VCDL output.
-		//vcdl_out <= {2{SYNC && (vcdl_enable_SYSCLK[1] || vcdl_pulse_seen) }};
-
-		//vcdl_enable_SYSCLK <= { vcdl_enable_SYSCLK[0], vcdl_enable };
-	
-		//train_disable_SYSCLK <= train_disable;
-	//end
 	
 	always @(posedge SYSCLK) begin
 		if (vcdl_pulse_SYSCLK_R0) vcdl_pulse_seen_R0 <= 1;
@@ -336,15 +322,50 @@ module RITC_dual_datapath_v2(
 		if (vcdl_pulse_SYSCLK_R1) vcdl_pulse_seen_R1 <= 1;
 		else if (SYNC) vcdl_pulse_seen_R1 <= 0;
 		
-		vcdl_out[0] <={SYNC & (vcdl_enable_SYSCLK_R0[1] || vcdl_pulse_seen_R0)};
 		vcdl_enable_SYSCLK_R0 <= { vcdl_enable_SYSCLK_R0[0], vcdl_enable_R0};
 		
-		vcdl_out[1] <={SYNC & (vcdl_enable_SYSCLK_R1[1] || vcdl_pulse_seen_R1)};
 		vcdl_enable_SYSCLK_R1 <= { vcdl_enable_SYSCLK_R1[0], vcdl_enable_R1};
 		
 		train_disable_SYSCLK <= train_disable;
 	end
 
+	// Full VCDL outputs.
+	// These are hard macros, which put the flipflop for the VCDL output
+	// in the nearest slice, route its output through an IDELAY, back through
+	// the ILOGIC (which also registers it using SYSCLK_DIV2_PS for the phase
+	// scanner) and over to the OLOGIC.
+	//
+	// This gives a tunable output delay for the VCDL to allow for compensating
+	// for RITC-to-RITC delay differences.
+	//
+	// The macros differ for the 2 VCDL outputs, since they are located on different
+	// sides of the chip and the location of the slice flipflop is obviously different.
+	
+	// VCDL[0] (left side of chip).
+	vcdl_0_wrapper u_vcdl0( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R0[1])),
+									.vcdl_clk_i(SYSCLK),
+									
+									.delay_i(r0_vcdl_delay),
+									.delay_ld_i(r0_vcdl_delay_load),
+									.delay_clk_i(user_clk_i),
+									
+									.vcdl_fb_clk_i(SYSCLK_DIV2_PS),
+									.vcdl_fb_q_o(VCDL_Q_PS[0]),
+									
+									.VCDL(VCDL[0]));
+	// VCDL[1] (right side of chip).
+	vcdl_1_wrapper u_vcdl1( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R1[1])),
+									.vcdl_clk_i(SYSCLK),
+									
+									.delay_i(r1_vcdl_delay),
+									.delay_ld_i(r1_vcdl_delay_load),
+									.delay_clk_i(user_clk_i),
+									
+									.vcdl_fb_clk_i(SYSCLK_DIV2_PS),
+									.vcdl_fb_q_o(VCDL_Q_PS[1]),
+									
+									.VCDL(VCDL[1]));
+	
 	generate
 		genvar i_bit, j_ch;
 		for (j_ch=0;j_ch<NUM_CH;j_ch=j_ch+1) begin : CH_LOOP
@@ -458,14 +479,6 @@ module RITC_dual_datapath_v2(
 	assign CH5_OUT = data_buffered[5];
 
 	assign TRAIN_ON = {2{train_disable}};
-
-	assign VCDL = vcdl_out;
-	assign debug_o[0] = vcdl_enable_R0;
-	assign debug_o[1] = vcdl_enable_R1;
-	assign debug_o[2] = vcdl_out[0];
-	assign debug_o[3] = vcdl_out[1];
-	assign debug_o[5:4] = vcdl_enable_SYSCLK_R0;
-	assign debug_o[7:6] = vcdl_enable_SYSCLK_R1;
 
 	assign disable_o = datapath_disable;
 endmodule

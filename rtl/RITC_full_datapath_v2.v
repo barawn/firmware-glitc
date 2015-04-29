@@ -40,6 +40,7 @@ module RITC_full_datapath_v2(
 		output [11:0] CH4_BYPASS,
 		output [11:0] CH5_BYPASS,
 		output [5:0] REFCLK_BYPASS,
+		output [1:0] VCDL_Q_PS,
 		// Sync input
 		input SYNC,
 		// VCDL outputs
@@ -138,6 +139,8 @@ module RITC_full_datapath_v2(
 												.CH3_Q(CH3_BYPASS),
 												.CH4_Q(CH4_BYPASS),
 												.CH5_Q(CH5_BYPASS),
+												// Duplicate VCDL outputs.
+												.VCDL_Q_PS(VCDL_Q_PS),
 												// Datapath disable output
 												.disable_o(datapath_disable),
 												// Interface (both IDELAY and datapath)
