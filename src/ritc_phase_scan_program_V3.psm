@@ -1,604 +1,168 @@
-CONSTANT	master_control,	00
-CONSTANT	dac_pending,	01
-CONSTANT	atten_pending,	02
-CONSTANT	err_out,	03
-CONSTANT	dac_base,	10
-CONSTANT	att_base,	20
+; Command register (low/high byte)
+CONSTANT	command_0,		00
+CONSTANT	command_1,		01
+; Scan status register.
+; See 'scan_status_' bits below.
+CONSTANT	scan_status,		04
+; Scan storage register.
+; See 'scan_store_' bits below.
+CONSTANT	scan_store,		05
 
-CONSTANT	mc_upd_pending, 01
-CONSTANT	mc_err_pending, 02
-CONSTANT	mc_initialized, 04
-CONSTANT	mc_pause,	08
-CONSTANT	mc_reset,	80
+CONSTANT	arg_0,			08
+CONSTANT	arg_1,			09
 
-CONSTANT	prerlo,		80
-CONSTANT	prerhi,		81
-CONSTANT	ctr,		82
-CONSTANT	txr,		83
-CONSTANT	rxr,		83
-CONSTANT	cr,		84
-CONSTANT	sr,		84
+CONSTANT	res_0,			0C
+CONSTANT	res_1,			0D
 
-CONSTANT	cr_wr_and_sta,	90
-CONSTANT	cr_wr,		10
-CONSTANT	cr_rd,		20
-CONSTANT	cr_sto,		40
-CONSTANT	cr_rd_and_nack,	28
-CONSTANT	sr_rxack,	80
-CONSTANT	sr_al,		20
-CONSTANT	sr_rxack_or_al,	A0
-CONSTANT	sr_busy,	40
-CONSTANT	sr_tip,		02
-CONSTANT	sr_busy_or_tip,	42
+CONSTANT	servo_0,		10
+CONSTANT	servo_1,		11
+CONSTANT	servo_2,		12
+CONSTANT	servo_3,		13
 
-CONSTANT	tca6416a_0,	40
-CONSTANT	tca6416a_1,	42
-CONSTANT	mcp4728_0,	C2
-CONSTANT	mcp4728_1,	C0
+; VDD output
+CONSTANT	vdd_0,			1C
+CONSTANT	vdd_1,			1D
 
-; Scratchpad RAM locations.
-CONSTANT	i2c_buffer,	 00
-CONSTANT	i2c_buffer_1,	 01
-CONSTANT	i2c_buffer_2,	 02
-CONSTANT	i2c_buffer_3,	 03
-CONSTANT	err_buffer,	 10
-CONSTANT	i2c_initialized, 18
+; Debug output
+CONSTANT	debug_0,		14
+CONSTANT	debug_1,		15
+CONSTANT	debug_2,		16
+CONSTANT	debug_3,		17
 
-; Errors.
-CONSTANT	err_tca6416a_0_NACKed, 01
-CONSTANT	err_tca6416a_1_NACKed, 02
-CONSTANT	err_mcp4728_0_NACKed, 03
-CONSTANT	err_mcp4728_1_NACKed, 04
-CONSTANT	err_spurious_upd_pending, 05
+; Scan control
+CONSTANT	servoctl_0,		18
+CONSTANT	servoctl_1,		19
+CONSTANT	servoctl_2,		1A
+CONSTANT	servoctl_3,		1C
 
-NAMEREG		sF, err_wr_ptr
-NAMEREG		sE, err_rd_ptr
+CONSTANT	scan_status_EN,		01
+CONSTANT	scan_status_INCDEC,	02
+CONSTANT	scan_status_PSDONE,	04
+CONSTANT	scan_status_SCAN_DONE,	08
 
-reset:
-	load	err_rd_ptr,	00
-	load	err_wr_ptr,	00
-	load	s0, mc_reset
-	output	s0, master_control
-reset_initialize:
-	load	s0, 00
-	store	s0, i2c_initialized
-	call	i2c_initialize
+CONSTANT	scan_store_CLOCK_0,	01
+CONSTANT	scan_store_SIGNAL_0,	02
+CONSTANT	scan_store_VCDL_0,	04
+CONSTANT	scan_store_CLOCK_1,	10
+CONSTANT	scan_store_SIGNAL_1,	20
+CONSTANT	scan_store_VCDL_1,	40
+
+;
+; These are the basic 'debugging' commands.
+;
+
+; Idle: do nothing
+CONSTANT	command_IDLE,		00
+; Free scan: Continuous scanning.
+CONSTANT	command_FREE_SCAN,	01
+; Get scan: Return the scan result in res_0/res_1.
+CONSTANT	command_GET_SCAN,	02
+; Go to step: Go to the scan step indicated in arg_0/arg_1 (low/high).
+;             Return the OLD step is res_0/res_1.
+;             Note that if the specified step is out of bounds
+;             (not 0-671) the result is still passed.
+CONSTANT    	command_GO_TO_STEP,	03
+; Reset step: Forcably set the internal 'cur_step' to 0.
+;             This is needed when the MMCM is externally
+;             reset, which causes the phase shift to revert
+;             back to 0.
+CONSTANT        command_RESET_STEP,	04
+
+;
+; These are the 'servo initialization' commands.
+;
+
+;
+; This is the 'run servo' command.
+;
+
+; Fine phase shift steps in 1/56th of the VCO.
+; VCO runs at 12 times phase-shift clock period.
+; Total scan length is therefore 56*12=672.
+CONSTANT	scan_step_limit_L,	9F
+CONSTANT	scan_step_limit_H,	02
+CONSTANT	scan_step_max_L,	A0
+CONSTANT	scan_step_max_H,	02
+
+NAMEREG		s8,			cur_step_L
+NAMEREG		s9,			cur_step_H
+NAMEREG		sA,			scan_step_L
+NAMEREG		sB,			scan_step_H
+
+reset:		
+		load		cur_step_L,	00
+		load		cur_step_H,	00
+		load		scan_step_L,	00
+		load		scan_step_H,	00
+
 main_loop:
-	call	read_error
-	input	s0, master_control
-	fetch	s1, i2c_initialized
-	compare	s1, 01
-	jump	NZ, main_loop_jp1
-	test	s0, mc_initialized
-	jump	Z, reset_initialize
-main_loop_jp1:
-	test	s0, mc_pause
-	jump	NZ, main_loop
-	test	s0, mc_upd_pending
-	jump	Z, main_loop
-	input	s0, dac_pending
-	test	s0, 0F
-	jump	NZ, update_mcp4728_0
-	test	s0, F0
-	jump	NZ, update_mcp4728_1
-	input	s0, atten_pending
-	test	s0, 07
-	jump	NZ, update_tca6416a_0
-	test	s0, 38
-	jump	NZ, update_tca6416a_1
-	load	s0, err_spurious_upd_pending
-	call	write_error
-	jump	main_loop
+		input		s0, command_0
+		compare		s0, command_IDLE
+		jump		Z,  main_loop
+		compare		s0, command_FREE_SCAN
+		jump		Z,  free_scan
+		compare		s0, command_GET_SCAN
+		jump		Z,  get_scan
+		compare		s0, command_GO_TO_STEP
+		jump		Z,  go_to_step
+		compare		s0, command_RESET_STEP
+		jump		Z,  reset_step
+		; unknown command, reset to idle
+		load	  	s0, command_IDLE
+		output		s0, command_0
+		jump		main_loop
 
-update_mcp4728_0:
-	load	s3, s0
-	load	s0, mcp4728_0
-	load	s8, 00
-	load	s9, i2c_buffer
-	; Find first DAC.
-	test    s3, 01
-	jump	Z,  update_mcp4728_0_dacB
-	; Command byte
-	load	sA, 40
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte.
-	input	sA, 11
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 10
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 01
-	output	sA, dac_pending
-update_mcp4728_0_dacB:
-	test	s3, 02
-	jump	Z,  update_mcp4728_0_dacC
-	; Command byte
-	load	sA, 42
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 13
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 12
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 02
-	output	sA, dac_pending
-update_mcp4728_0_dacC:
-	test	s3, 04
-	jump	Z,  update_mcp4728_0_dacD
-	; Command byte
-	load	sA, 44
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 15
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 14
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 04
-	output	sA, dac_pending
-update_mcp4728_0_dacD:
-	test	s3, 08
-	jump	Z,  update_mcp4728_0_execute
-	; Command byte
-	load	sA, 46
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 17
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 16
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 08
-	output	sA, dac_pending
-update_mcp4728_0_execute:
-	load	s1, s8
-	load	s2, 00
-	call	i2c_execute
-	jump	main_loop		
+phase_increment:
+		load		s0, 03
+		output		s0, scan_status
+phase_increment_jp0:
+		input		s0, scan_status
+		test		s0, 04
+		jump		Z, phase_increment_jp0
+		return
 
-update_mcp4728_1:
-	load	s3, s0
-	load	s0, mcp4728_1
-	load	s8, 00
-	load	s9, i2c_buffer
-	; Find first DAC.
-	test    s3, 10
-	jump	Z,  update_mcp4728_1_dacB
-	; Command byte
-	load	sA, 40
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte.
-	input	sA, 19
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 18
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 10
-	output	sA, dac_pending
-update_mcp4728_1_dacB:
-	test	s3, 20
-	jump	Z,  update_mcp4728_1_dacC
-	; Command byte
-	load	sA, 42
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 1B
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 1A
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 20
-	output	sA, dac_pending
-update_mcp4728_1_dacC:
-	test	s3, 40
-	jump	Z,  update_mcp4728_1_dacD
-	; Command byte
-	load	sA, 44
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 1D
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 1C
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 40
-	output	sA, dac_pending
-update_mcp4728_1_dacD:
-	test	s3, 80
-	jump	Z,  update_mcp4728_1_execute
-	; Command byte
-	load	sA, 46
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; High byte
-	input	sA, 1F
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	; Low byte
-	input	sA, 1E
-	and	sA, 0F
-	store	sA, (s9)
-	add	s9, 01
-	add	s8, 01
-	load	sA, 80
-	output	sA, dac_pending
-update_mcp4728_1_execute:
-	load	s1, s8
-	load	s2, 00
-	call	i2c_execute
-	jump	main_loop		
+phase_decrement:
+		load		s0, 01
+		output		s0, scan_status
+phase_decrement_jp0:
+		input		s0, scan_status
+		test		s0, 04
+		jump		Z, phase_decrement_jp0
+		return
 
-update_tca6416a_0:
-	; For the TCA6416As, we ned to write all of them at once.
-	; The firmware has the FIRST tca6416a inputs wired backwards to the PicoBlaze, so
-	; we don't need to realign them here.
-	load	s8, 02
-	store	s8, i2c_buffer
-	; Fetch first attenuator.
-	input	s8, 20
-	and	s8, 1F
-	; Fetch second attenuator.
-	input 	s9, 21
-	and	s9, 1F
-	; Shift first 3 bits into sA's top 3 bits.
-	load	sA, 00
-	sr0	s9
-	sra	sA
-	sr0	s9
-	sra	sA
-	sr0	s9
-	sra	sA
-	; Combine top 3 bits with first attenuator.
-	add	s8, sA
-	; Fetch third attenuator.
-	input	sA, 22
-	; Shift it up two.
-	sl0	sA
-	sl0	sA
-	; Combine with top 2 bits of second attenuator.
-	add	s9, sA
-	; And add LDAC to keep it high.
-	or    	s9, 80
-	store	s8, i2c_buffer_1
-	store	s9, i2c_buffer_2
-	load	s1, 03
-	load	s2, 00
-	; Clear any pending bits, since we just read them.
-	output	s0, atten_pending
-	load  	s0, tca6416a_0
-	call	i2c_execute
-	jump	main_loop
-	
-update_tca6416a_1:
-	; For the TCA6416As, we ned to write all of them at once.
-	; The firmware has the SECOND tca6416a inputs wired direct to the PicoBlaze, so
-	; we don't need to realign them here.
-	load	s8, 02
-	store	s8, i2c_buffer
-	; Fetch first attenuator.
-	input	s8, 23
-	and	s8, 1F
-	; Fetch second attenuator.
-	input 	s9, 24
-	and	s9, 1F
-	; Shift first 3 bits into sA's top 3 bits.
-	load	sA, 00
-	sr0	s9
-	sra	sA
-	sr0	s9
-	sra	sA
-	sr0	s9
-	sra	sA
-	; Combine top 3 bits with first attenuator.
-	add	s8, sA
-	; Fetch third attenuator.
-	input	sA, 25
-	; Shift it up two.
-	sl0	sA
-	sl0	sA
-	; Combine with top 2 bits of second attenuator.
-	add	s9, sA
-	; And add LDAC to keep it high.
-	or    	s9, 80
-	store	s8, i2c_buffer_1
-	store	s9, i2c_buffer_2
-	load	s1, 03
-	load	s2, 00
-	; Clear any pending bits, since we just read them.
-	output	s0, atten_pending
-	load  	s0, tca6416a_1
-	call	i2c_execute
-	jump	main_loop
+free_scan:
+		load		scan_step_L, cur_step_L
+		load		scan_step_H, cur_step_H
+free_scan_lp0:	add		scan_step_L, 01
+		addcy		scan_step_H, 00
+		compare		scan_step_L, scan_step_max_L
+		comparecy	scan_step_H, scan_step_max_H
+		jump		NZ, free_scan_jp0
+		load		scan_step_L, 00
+		load		scan_step_H, 00
+free_scan_jp0:	call		phase_increment
+		output		scan_step_L, debug_0
+		output		scan_step_H, debug_1
+		compare		scan_step_L, cur_step_L
+		comparecy	scan_step_H, cur_step_H
+		jump		NZ, free_scan_lp0
+		load		s0, 08
+		output		s0, scan_status
+		jump		main_loop
 
-read_error:
-	input	s0, master_control		; fetch master control
-	test	s0, mc_err_pending		; is the error pending set?
-	return	NZ				; if so, not ready for new err
-	compare	err_wr_ptr, err_rd_ptr		; is an error in the buffer?
-	return	Z	    			; if not, return
-	fetch	s0, (err_rd_ptr)		; yes - so fetch it
-	add	err_rd_ptr, 01			; increment ptr
-	and	err_rd_ptr, F7			; mask off bit 3 (7 entries)
-	output	s0, err_out 			; output it
-	load	s0, mc_err_pending
-	output	s0, master_control		; and set error_pending
-	return
+get_scan:
+		load		s0, 00
+		output		s0, command_0
+		jump		main_loop
 
-i2c_initialize:
-	load	s1, 00
-	input	s0, sr
-	test	s0, sr_tip
-	jump	NZ, i2c_initialize
-	load	s0, 00
-	output	s0, ctr
-	load	s0, 0F
-	output	s0, prerlo
-	load	s0, 00
-	output	s0, prerhi
-	load	s0, 80
-	output	s0, ctr
-	load	s0, tca6416a_0
-	; NZ indicates error
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp0
-	load	s0, err_tca6416a_0_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp0:
-	load	s0, tca6416a_1
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp1
-	load	s0, err_tca6416a_1_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp1:
-	load	s0, mcp4728_0
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp2
-	load	s0, err_mcp4728_0_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp2:
-	load	s0, mcp4728_1
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp3
-	load	s0, err_mcp4728_1_NACKed
-	call	write_error
-	load	s1, 01
+go_to_step:
+		load		s0, 00
+		output		s0, command_0
+		jump		main_loop
 
-	; At this point, all devices present. Now setup.
-i2c_initialize_jp3:
-	load    s0, tca6416a_0
-	call	tca6416a_initialize
-	jump	Z, i2c_initialize_jp4
-	load	s0, err_tca6416a_0_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp4:
-	load	s0, tca6416a_1
-	call	tca6416a_initialize
-	jump	Z, i2c_initialize_jp5
-	load	s0, err_tca6416a_1_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp5:
-	load	s0, mcp4728_0
-	call	mcp4728_initialize
-	jump	Z, i2c_initialize_jp6
-	load	s0, err_mcp4728_0_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp6:
-	load	s0, mcp4728_1
-	call	mcp4728_initialize
-	jump	Z, i2c_initialize_jp7
-	load	s0, err_mcp4728_1_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp7:
-	test	s1, 01
-	return	Z
-	store	s1, i2c_initialized
-	load	s0, mc_initialized
-	output	s0, master_control
-	return
-
-	; s0: address of tca6416a to initialize
-	; Return NZ with error.
-tca6416a_initialize:
-	load	s1, 03
-	load	s2, 00
-	load	s8, 02
-	store	s8, i2c_buffer
-	load	s8, FF
-	store	s8, i2c_buffer_1
-	store	s8, i2c_buffer_2
-	call 	i2c_execute
-	; if NZ, error
-	return  NZ
-	load	s1, 03
-	load	s8, 06
-	store	s8, i2c_buffer
-	store	s2, i2c_buffer_1
-	store	s2, i2c_buffer_2
-	call	i2c_execute
-	return
-
-	; s0: address of mcp4728 to initialize
-	; Return NZ with error.
-mcp4728_initialize:
-	load	s1, 02
-	load	s2, 00
-	load	s8, C0
-	store	s8, i2c_buffer
-	store	s2, i2c_buffer_1
-	call	i2c_execute
-	return
-
-	; s0 = i2c_address
-	; s1 = i2c_txlen
-	; s2 = i2c_rxlen
-	; return NZ with error
-i2c_execute:
-	call i2c_wait_until_done
-	compare	s1, 00					; check TX length
-	jump	Z, i2c_execute_read			; if 0, just read
-	output	s0, txr					; output address
-	load	s8, cr_wr_and_sta			; output STA+WR
-	output	s8, cr
-	call i2c_wait_until_done
-	test s8, sr_rxack				; Did we get a NACK?
-	jump NZ, i2c_execute_stop_return_err		; if so, set error
-	load   s9, i2c_buffer				; Now send data.
-i2c_execute_write_loop:
-	fetch  s8, (s9)
-	output s8, txr
-	load   s8, cr_wr
-	output s8, cr
-	call   i2c_wait_until_done
-	test   s8, sr_rxack				; Did we get a NACK?
-	jump   NZ, i2c_execute_stop_return_err		; if so, set error.
-	add    s9, 01
-	sub    s1, 01
-	jump   NZ, i2c_execute_write_loop
-	load   s8, cr_sto
-	output s8, cr
-	call   i2c_wait_until_free
-i2c_execute_read:
-	compare	s2, 00
-	jump	Z, i2c_execute_finish
-	load	s8, s0
-	add	s8, 01
-	output	s8, txr
-	load	s8, cr_wr_and_sta
-	output	s8, cr
-	call	i2c_wait_until_done			
-	test	s8, sr_rxack				; Did we get a NACK?
-	jump	NZ, i2c_execute_stop_return_err		; If so, set error.
-	load	s9, i2c_buffer
-i2c_execute_read_loop:
-	load	s8, cr_rd
-	sub	s2, 01
-	jump	NZ, i2c_execute_read_jp1
-	load	s8, cr_rd_and_nack
-i2c_execute_read_jp1:
-	output	s8, cr
-	call	i2c_wait_until_done
-	input	s8, rxr
-	store	s8, (s9)
-	add	s9, 01
-	compare	s2, 00
-	jump	NZ, i2c_execute_read_loop
-	load	s8, cr_sto
-	output	s8, cr
-	call 	i2c_wait_until_free
-i2c_execute_finish:
-	; Z is already set (i2c_wait_until_free, or previous jump).
-	return
-i2c_execute_stop_return_err:
-	load	s8, cr_sto
-	output	s8, cr
-	call	i2c_wait_until_free
-	; Need to clear Z.
-	sl1    s8
-	return
-
-	; Write an error into the buffer.
-	; s0: Error to store in buffer.
-write_error:
-	load	s8, err_wr_ptr
-	add	s8, 01
-	and	s8, 0F
-	compare	s8, err_rd_ptr
-	; Do nothing if the error buffer is full.
-	return	Z
-	store	s0, (err_wr_ptr)
-	load	err_wr_ptr, s8
-	return
-
-	; Check for existence of an I2C address.
-	; s0: address to check
-	; return NZ with error
-i2c_check_if_present:
-	output	s0, txr
-	load	s0, cr_wr_and_sta
-	output	s0, cr
-	call	i2c_wait_until_done
-	load	s0, cr_sto
-	output	s0, cr
-	call	i2c_wait_until_free
-	test	s8, sr_rxack
-	return
-
-	; Wait until TIP is clear in status register.
-i2c_wait_until_done:
-	input	s8, sr
-	test	s8, sr_tip
-	return	Z
-	jump	i2c_wait_until_done
-
-	; Wait until BUSY is clear in status register.
-i2c_wait_until_free:
-	input	s8, sr
-	test	s8, sr_busy
-	return	Z
-	jump	i2c_wait_until_free
-	
+reset_step:
+		load		cur_step_L, 00
+		load		cur_step_H, 00
+		output		cur_step_L, command_0
+		jump		main_loop
+		
