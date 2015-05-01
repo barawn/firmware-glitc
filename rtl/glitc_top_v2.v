@@ -80,11 +80,11 @@ module glitc_top_v2(
 		    );
 
 	localparam [3:0] VER_BOARDREV = 0;
-	localparam [3:0] VER_MONTH = 4;
-	localparam [7:0] VER_DAY = 29;
+	localparam [3:0] VER_MONTH = 5;
+	localparam [7:0] VER_DAY = 1;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 1;
-	localparam [7:0] VER_REV = 14;
+	localparam [7:0] VER_REV = 16;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -223,7 +223,7 @@ module glitc_top_v2(
 	wire [5:0] REFCLK_P = {F_CLK_P,E_CLK_P,D_CLK_P,C_CLK_P,B_CLK_P,A_CLK_P};
 	wire [5:0] REFCLK_N = {F_CLK_N,E_CLK_N,D_CLK_N,C_CLK_N,B_CLK_N,A_CLK_N};
 	wire [1:0] VCDL_Q_PS;
-	wire [11:0] datapath_debug;
+	wire [15:0] datapath_debug;
 	RITC_full_datapath_v2    u_full_datapath(.REFCLK_P(REFCLK_P),.REFCLK_N(REFCLK_N),
 													  .CH0_P(A_P),.CH0_N(A_N),
 													  .CH1_P(B_P),.CH1_N(B_N),
@@ -373,6 +373,8 @@ module glitc_top_v2(
 	wire [1:0] debug_mux = vio_to_glitc[1:0];
 	
 	assign ila1_debug[31:0] = debug_ritc;
+	assign ila1_debug[32 +: 16] = datapath_debug;
+	
 	// Only gb_clk-side modules have a muxable debug.
 	// sysclk is too fast.
 	glitc_debug_mux u_debug_mux(.clk_i(gb_clk),

@@ -57,7 +57,7 @@ module GLITC_datapath_buffers(
 		output [47:0] OUT5
     );
 
-	reg [1:0] en_sysclk_p = 0;
+	reg en_sysclk_p = 0;
 	reg en_sysclk_n = 0;
 	reg en_dataclk_div2 = 0;
 	reg ack_dataclk_div2 = 0;
@@ -65,11 +65,11 @@ module GLITC_datapath_buffers(
 
 	// FIFO control handling.
 	always @(posedge SYSCLK) begin
-		en_sysclk_p <= {en_sysclk_p[0],en_i};
+		en_sysclk_p <= en_i;
 		ack_sysclk <= ack_dataclk_div2;
 	end
 	always @(negedge SYSCLK) begin
-		en_sysclk_n <= en_sysclk_p[1];
+		en_sysclk_n <= en_sysclk_p;
 	end
 	always @(posedge DATACLK_DIV2) begin
 		en_dataclk_div2 <= en_sysclk_n;

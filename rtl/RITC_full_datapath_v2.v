@@ -56,7 +56,7 @@ module RITC_full_datapath_v2(
 		input [31:0] user_dat_i,
 		output [31:0] user_dat_o,
 		
-		output [11:0] debug_o
+		output [15:0] debug_o
     );
 
 	// Datapath register map:

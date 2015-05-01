@@ -82,7 +82,7 @@ module RITC_dual_datapath_v2(
 		input [3:0] user_addr_i,
 		input [31:0] user_dat_i,
 		output [31:0] user_dat_o,
-		output [11:0] debug_o
+		output [15:0] debug_o
     );
 	 
 	localparam NUM_CH=6;
@@ -106,24 +106,48 @@ module RITC_dual_datapath_v2(
 	reg [6:0] delay_bit_select = {7{1'b0}};
 	//< Delay load.
 	reg delay_load = 0;
-	//< Training latch for every input. This is sadly very big.
+	//< Training latch for every input. This is sadly very big (8x12=96 bits for every channel, equiv. to 2x 16 samples x 3 bits per).
 	reg [7:0] train_latch[5:0][11:0];
 	//< Expanded array, to fill up to powers of 2. 16 bits (12 real), 4 channels (3 real), 2 RITC
 	wire [7:0] train_latch_expanded[1:0][3:0][15:0];
+	//< Rearranged training latch for sample view.
+	wire [2:0] sample_latch[5:0][31:0];
+	//< Expanded array, to fill up to powers of 2. 32 samples, 4 channels (3 real), 2 RITC
+	wire [2:0] sample_latch_expanded[1:0][3:0][31:0];
 	//< Training sync
 	reg [7:0] train_sync = {8{1'b0}};
 	//< Training select
-	reg [6:0] train_bit_select = {7{1'b0}};
+	reg [7:0] train_bit_select = {8{1'b0}};
+	//< Training select, in sample view mode.
+	wire [7:0] train_sample_select = {train_bit_select[6:4],train_bit_select[7],train_bit_select[3:0]};
 	//< Bitslip.
 	reg bitslip = 0;
 	//< Training disable
 	reg train_disable = 0;	
 	//< Training disable in the SYSCLK domain.
 	reg train_disable_SYSCLK = 0;
+	//< Training latch enable.
+	reg train_latch_enable = 0;
+	//< Training latch is busy.
+	reg train_latch_busy = 0;
+	// 1 when train_latch_enable has been seen.
+	reg train_latch_enable_seen_SYSCLK = 0;
+	// 1 when train_latch_enable is high, and SYNC is seen. This disables train_latch_enable_seen_SYSCLK and flags back to user_clk.
+	reg train_latch_has_seen_SYNC = 0;
+	// Flag to latch an incoming training sample.
+	wire train_latch_enable_SYSCLK;
+	// Flag to indicate that the latching is complete.
+	wire train_latch_done_user_clk;
+	//< Sample view.
+	reg sample_view = 0;
 	//< IOFIFO resets
 	reg fifo_reset = 0;
 	//< IOFIFO enable
 	reg fifo_enable = 0;
+	//< IOFIFO enable, in SYSCLK.
+	reg [1:0] fifo_enable_SYSCLK = {2{1'b0}};
+	//< IOFIFO reset, in SYSCLK.
+	wire fifo_reset_SYSCLK;
 	//< Input buffer disable.
 	reg datapath_disable = 1;
 
@@ -198,10 +222,12 @@ module RITC_dual_datapath_v2(
 	// DPCTRL1[29]   = R0 Continuous VCDL.
 	// DPCTRL1[30]	  = R1 Single VCDL pulse.
 	// DPCTRL1[31]	  = R1 Continuous VCDL.
-	// 
+	//
 	// DPTRAINING[31] 	= Disable training.
-	// DPTRAINING[30] 	= BITSLIP the selected channel.
-	// DPTRAINING[22:16] = Bit select.
+	// DPTRAINING[30] 	= BITSLIP the selected channel (in bit view).
+	// DPTRAINING[29]    = Enable sample view (1=sample view, 0=bit view).
+	// DPTRAINING[28]    = Disable training latch.
+	// DPTRAINING[23:16] = Bit or sample select.
 	// DPTRAINING[7:0]	= Training pattern.
 	//
 	// DPCOUNTER[15:0]	= REFCLK counter.
@@ -210,6 +236,7 @@ module RITC_dual_datapath_v2(
 	// DPIDELAY[4:0] 		= Data IDELAY register.
 	// DPIDELAY[22:16] 	= Bit select.
 	// DPIDELAY[31]		= Load delay.
+
 	wire [31:0] data_out[15:0];
 	assign user_dat_o = data_out[user_addr_i];
 
@@ -256,7 +283,7 @@ module RITC_dual_datapath_v2(
 				train_latch[ii][jj] <= {8{1'b0}};
 	end
 	
-	assign refclk_select_wr = user_sel_i && user_wr_i && user_addr_i == 4'd3;
+	assign refclk_select_wr = user_sel_i && user_wr_i && user_addr_i == 4'd3;	
 	
 	always @(posedge user_clk_i) begin
 		// Resets.
@@ -282,6 +309,8 @@ module RITC_dual_datapath_v2(
 			vcdl_pulse_R1 <= user_dat_i[30];
 			vcdl_enable_R1 <= user_dat_i[31];
 		end else begin
+			vcdl_pulse_R1 <= 0;
+			vcdl_pulse_R0 <= 0;
 			r0_vcdl_delay_load <= 0;
 			r1_vcdl_delay_load <= 0;
 		end
@@ -291,9 +320,12 @@ module RITC_dual_datapath_v2(
 		end
 		// Training bit select register.
 		if (user_sel_i && user_wr_i && user_addr_i == 4'd2) begin
-			train_bit_select <= user_dat_i[22:16];
+			train_bit_select[6:0] <= user_dat_i[22:16];
+			train_bit_select[7] <= (user_dat_i[29] && user_dat_i[23]);
 			train_disable <= user_dat_i[31];
-			bitslip <= user_dat_i[30];
+			bitslip <= user_dat_i[30] && !user_dat_i[29];
+			sample_view <= user_dat_i[29];
+			train_latch_enable <= user_dat_i[28];
 		end else bitslip <= 0;		
 		// IDELAY control register.
 		if (user_sel_i && user_wr_i && user_addr_i == 4'd4) begin
@@ -302,20 +334,59 @@ module RITC_dual_datapath_v2(
 			delay_load <= user_dat_i[31];
 		end else delay_load <= 0;
 
-		if (!train_disable) 
+		if (train_latch_done_user_clk && !sample_view) 
 			train_sync <= train_latch_expanded[train_bit_select[6]][train_bit_select[5:4]][train_bit_select[3:0]];
+		else if (train_latch_done_user_clk)
+			// Note that train_sample_select is a reorganized train_bit_select.
+			train_sync <= {{5{1'b0}}, sample_latch_expanded[train_sample_select[7]][train_sample_select[6:5]][train_sample_select[4:0]]};
+			
+		if (train_latch_done_user_clk || !train_latch_enable) train_latch_busy <= 0;
+		else if (train_latch_enable) train_latch_busy <= 1;
 	end
 
+	// Flag SYSCLK that it should latch data.
+	flag_sync u_train_latch(.in_clkA(train_latch_enable && !train_latch_busy), .clkA(user_clk_i),
+									.out_clkB(train_latch_enable_SYSCLK), .clkB(SYSCLK));
+	// Flag user_clock back that the train latch is done.
+	flag_sync u_train_latch_done(.in_clkA(train_latch_has_seen_SYNC),.clkA(SYSCLK),
+										  .out_clkB(train_latch_done_user_clk),.clkB(user_clk_i));
+		
 	// SYSCLK logic.
 	flag_sync u_vcdl_pulse_sync_R0(.in_clkA(vcdl_pulse_R0),.clkA(user_clk_i),
 											.out_clkB(vcdl_pulse_SYSCLK_R0), .clkB(SYSCLK));
 	flag_sync u_vcdl_pulse_sync_R1(.in_clkA(vcdl_pulse_R1),.clkA(user_clk_i),
 											.out_clkB(vcdl_pulse_SYSCLK_R1), .clkB(SYSCLK));										
+	flag_sync u_fifo_reset(.in_clkA(fifo_reset),.clkA(user_clk_i),
+								  .out_clkB(fifo_reset_SYSCLK),.clkB(SYSCLK));
+	
 	
 	reg vcdl_pulse_seen_R0 = 0;
 	reg vcdl_pulse_seen_R1 = 0;
 	
 	always @(posedge SYSCLK) begin
+		// So the 2 possible sequences here are:
+		// clk sync train_latch_enable_SYSCLK train_latch_enable_seen_SYSCLK train_latch_has_seen_SYNC
+		// 0 1 0 0 0
+		// 1 0 1 0 0
+		// 2 1 0 1 0
+		// 3 0 0 1 1
+		// 4 1 0 0 0
+		// And
+		// 0 0 0 0 0
+		// 1 1 1 0 0
+		// 2 0 0 1 0 
+		// 3 1 0 1 0
+		// 4 0 0 1 1
+		// 5 1 0 0 0
+		// In the second case train_latch_enable is high for 3 cycles (as opposed to 2) but the pattern
+		// latched is still SYNC, ~SYNC.
+		// Note that I HAVE NO IDEA if this is the right grouping. I need to find a way to figure this out...
+		if (train_latch_has_seen_SYNC) train_latch_enable_seen_SYSCLK <= 0;
+		else if (train_latch_enable_SYSCLK) train_latch_enable_seen_SYSCLK <= 1;
+		
+		if (SYNC && train_latch_enable_seen_SYSCLK) train_latch_has_seen_SYNC <= 1;
+		else train_latch_has_seen_SYNC <= 0;
+
 		if (vcdl_pulse_SYSCLK_R0) vcdl_pulse_seen_R0 <= 1;
 		else if (SYNC) vcdl_pulse_seen_R0 <= 0;
 		
@@ -327,6 +398,8 @@ module RITC_dual_datapath_v2(
 		vcdl_enable_SYSCLK_R1 <= { vcdl_enable_SYSCLK_R1[0], vcdl_enable_R1};
 		
 		train_disable_SYSCLK <= train_disable;
+		
+		fifo_enable_SYSCLK <= {fifo_enable_SYSCLK[0],fifo_enable};
 	end
 
 	// Full VCDL outputs.
@@ -342,7 +415,7 @@ module RITC_dual_datapath_v2(
 	// sides of the chip and the location of the slice flipflop is obviously different.
 	
 	// VCDL[0] (left side of chip).
-	vcdl_0_wrapper u_vcdl0( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R0[1])),
+	vcdl_0_wrapper u_vcdl0( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R0[1] || vcdl_pulse_seen_R0 )),
 									.vcdl_clk_i(SYSCLK),
 									
 									.delay_i(r0_vcdl_delay),
@@ -354,7 +427,7 @@ module RITC_dual_datapath_v2(
 									
 									.VCDL(VCDL[0]));
 	// VCDL[1] (right side of chip).
-	vcdl_1_wrapper u_vcdl1( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R1[1])),
+	vcdl_1_wrapper u_vcdl1( .vcdl_i( SYNC & (vcdl_enable_SYSCLK_R1[1] || vcdl_pulse_seen_R1 )),
 									.vcdl_clk_i(SYSCLK),
 									
 									.delay_i(r1_vcdl_delay),
@@ -367,7 +440,7 @@ module RITC_dual_datapath_v2(
 									.VCDL(VCDL[1]));
 	
 	generate
-		genvar i_bit, j_ch;
+		genvar i_bit, j_ch, k_samp;
 		for (j_ch=0;j_ch<NUM_CH;j_ch=j_ch+1) begin : CH_LOOP
 			for (i_bit=0;i_bit<NUM_BIT;i_bit=i_bit+1) begin : BIT_LOOP
 				// bit_select[3:0] == bit (from 0-11, 15 is special)
@@ -389,7 +462,7 @@ module RITC_dual_datapath_v2(
 													  .serdes_DATACLK_DIV2_o(data_deserdes[j_ch][4*i_bit +: 4]),
 													  .q_SYSCLK_DIV2_PS_o(ch_b_q[j_ch][i_bit]));
 				always @(posedge SYSCLK) begin
-					if (!train_disable && valid_o) begin
+					if (valid_o) begin
 						if (SYNC) train_latch[j_ch][i_bit][7:4] <= data_buffered[j_ch][4*i_bit +: 4];
 						else		 train_latch[j_ch][i_bit][3:0] <= data_buffered[j_ch][4*i_bit +: 4];
 					end
@@ -400,6 +473,45 @@ module RITC_dual_datapath_v2(
 					assign train_latch_expanded[1][j_ch-3][i_bit] = train_latch[j_ch][i_bit];
 				end
 			end
+			// 12 to 15 copy 4 to 7.
+			for (i_bit=12;i_bit<16;i_bit=i_bit+1) begin : EXPAND_SIGNAL
+				if (j_ch < 3) begin : R0
+					assign train_latch_expanded[0][j_ch][i_bit] = train_latch_expanded[0][j_ch][i_bit-8];
+				end else begin : R1
+					assign train_latch_expanded[1][j_ch-3][i_bit] = train_latch_expanded[1][j_ch-3][i_bit-8];
+				end
+			end
+
+
+			for (k_samp=0;k_samp<4;k_samp=k_samp+1) begin : SAMPLE
+				// generate 0,4,8,12
+				assign sample_latch[j_ch][4*k_samp + 0] = {train_latch[j_ch][0][3-k_samp],train_latch[j_ch][1][3-k_samp],train_latch[j_ch][2][3-k_samp]};
+				// generate 16,20,24,28
+				assign sample_latch[j_ch][4*k_samp + 16] = {train_latch[j_ch][0][7-k_samp],train_latch[j_ch][1][7-k_samp],train_latch[j_ch][2][7-k_samp]};
+
+				// generate 1,5,9,13
+				assign sample_latch[j_ch][4*k_samp + 1] = {train_latch[j_ch][3][3-k_samp],train_latch[j_ch][4][3-k_samp],train_latch[j_ch][5][3-k_samp]};
+				// generate 17,21,25,29
+				assign sample_latch[j_ch][4*k_samp + 17] = {train_latch[j_ch][3][7-k_samp],train_latch[j_ch][4][7-k_samp],train_latch[j_ch][5][7-k_samp]};
+				
+				// generate 2,6,10,14
+				assign sample_latch[j_ch][4*k_samp + 2] = {train_latch[j_ch][6][3-k_samp],train_latch[j_ch][7][3-k_samp],train_latch[j_ch][8][3-k_samp]};
+				// generate 18,22,26,30
+				assign sample_latch[j_ch][4*k_samp + 18] = {train_latch[j_ch][6][7-k_samp],train_latch[j_ch][7][7-k_samp],train_latch[j_ch][8][7-k_samp]};
+
+				// generate 3,7,11,15
+				assign sample_latch[j_ch][4*k_samp + 3] = {train_latch[j_ch][9][3-k_samp],train_latch[j_ch][10][3-k_samp],train_latch[j_ch][11][3-k_samp]};
+				// generate 19,23,27,31
+				assign sample_latch[j_ch][4*k_samp + 19] = {train_latch[j_ch][9][7-k_samp],train_latch[j_ch][10][7-k_samp],train_latch[j_ch][11][7-k_samp]};
+			end
+			for (k_samp=0;k_samp<32;k_samp=k_samp+1) begin : EXPAND_SAMPLE
+				if (j_ch < 3) begin : R0
+					assign sample_latch_expanded[0][j_ch][k_samp] = sample_latch[j_ch][k_samp];
+				end else begin : R1
+					assign sample_latch_expanded[1][j_ch-3][k_samp] = sample_latch[j_ch][k_samp];
+				end
+			end
+			
 			glitc_clock_path_wrapper u_cp(.SYSCLK_DIV2_PS(SYSCLK_DIV2_PS),
 													.IN_P(CLK[j_ch]),.IN_N(CLK_B[j_ch]),
 													.clk_i(user_clk_i),
@@ -412,15 +524,22 @@ module RITC_dual_datapath_v2(
 			assign clock_idelay_load[j_ch] = 
 				delay_load && (delay_bit_select[3:0] == 4'hF) && (delay_bit_select[6:4] == j_ch);
 		end
-		for (i_bit=12;i_bit<16;i_bit=i_bit+1) begin : EXPAND
-			assign train_latch_expanded[0][3][i_bit] = {8{1'b0}};
-			assign train_latch_expanded[1][3][i_bit] = {8{1'b0}};
+		for (i_bit=0;i_bit<16;i_bit=i_bit+1) begin : EXPAND2
+			assign train_latch_expanded[0][3][i_bit] = train_latch_expanded[0][1][i_bit];
+			assign train_latch_expanded[1][3][i_bit] = train_latch_expanded[1][1][i_bit];
+
+			assign sample_latch_expanded[0][3][i_bit] = sample_latch_expanded[0][1][i_bit];
+			assign sample_latch_expanded[1][3][i_bit] = sample_latch_expanded[1][1][i_bit];
 		end
+		
 	endgenerate
+	
+	// 
+	
 	// OK, we now have a bucketload of deserialized data, in the DATACLK_DIV2 domain.
 	// We need to get it into the SYSCLK domain.
-	GLITC_datapath_buffers u_buffers(.rst_i(fifo_reset),
-												.en_i(fifo_enable),
+	GLITC_datapath_buffers u_buffers(.rst_i(fifo_reset_SYSCLK),
+												.en_i(fifo_enable_SYSCLK[1]),
 												.valid_o(valid_o),
 												.DATACLK_DIV2(DATACLK_DIV2),
 												.SYSCLK(SYSCLK),
@@ -458,7 +577,7 @@ module RITC_dual_datapath_v2(
 	// DPCTRL1
 	assign DPCTRL1 = {vcdl_enable_R1,1'b0,vcdl_enable_R0,{7{1'b0}},refclk_q,{3{1'b0}},r1_vcdl_delay,{3{1'b0}},r0_vcdl_delay};
 	// DPTRAINING
-	assign DPTRAINING = {train_disable,{9{1'b0}},train_bit_select,{8{1'b0}},train_sync};
+	assign DPTRAINING = {train_disable,1'b0,sample_view,train_latch_enable,{4{1'b0}},train_bit_select,{8{1'b0}},train_sync};
 	// DPCOUNTER
 	assign DPCOUNTER = {{12{1'b0}},refclk_select,{6{1'b0}},refclk_counter};
 	// DPIDELAY
@@ -481,4 +600,12 @@ module RITC_dual_datapath_v2(
 	assign TRAIN_ON = {2{train_disable}};
 
 	assign disable_o = datapath_disable;
+
+	assign debug_o[0] = fifo_enable_SYSCLK[1];
+	assign debug_o[1] = valid_o;
+	assign debug_o[2] = train_latch_enable_SYSCLK;
+	assign debug_o[3] = train_latch_has_seen_SYNC;
+	assign debug_o[4 +: 8] = data_buffered[0][7:0];
+	assign debug_o[12] = SYNC;
+	assign debug_o[13] = train_latch_enable_seen_SYSCLK;
 endmodule
