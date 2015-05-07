@@ -87,7 +87,18 @@ module RITC_dual_datapath_v2(
 	 
 	localparam NUM_CH=6;
 	localparam NUM_BIT=12;
-	 
+	
+	
+	// THIS IS MAGIC
+	// ch0 = 000
+	// ch1 = 000
+	// ch2 = FEF (bit 4 is inverted, and all ch2 outputs are inverted
+	// ch3 = 000
+	// ch4 = 000
+	// ch5 = FFF (all ch2 outputs are inverted)
+	localparam [NUM_CH*NUM_BIT-1:0] BIT_POLARITY = 72'hFFF000000FEF000000;
+	
+	
 	//< IDELAY loads.
 	wire [11:0] data_idelay_load[5:0];
 	//< REFCLK idelay load.
@@ -96,6 +107,10 @@ module RITC_dual_datapath_v2(
 	wire [11:0] data_iserdes_bitslip[5:0];
 	//< SERDES reset.
 	reg serdes_reset = 0;
+	//< SERDES reset, in DATACLK_DIV2 domain (out of flag_sync).
+	wire serdes_reset_DATACLK_DIV2;
+	//< SERDES reset, reclocked in DATACLK_DIV2 domain.
+	reg serdes_reset_flag_DATACLK_DIV2 = 0;
 	//< Delayctrl reset.
 	reg delayctrl_reset = 0;
 	//< Delayctrl ready.
@@ -142,12 +157,16 @@ module RITC_dual_datapath_v2(
 	reg sample_view = 0;
 	//< IOFIFO resets
 	reg fifo_reset = 0;
+	//< IOFIFO reset request, in SYSCLK domain.
+	wire fifo_reset_request_SYSCLK;
 	//< IOFIFO enable
 	reg fifo_enable = 0;
 	//< IOFIFO enable, in SYSCLK.
 	reg [1:0] fifo_enable_SYSCLK = {2{1'b0}};
-	//< IOFIFO reset, in SYSCLK.
-	wire fifo_reset_SYSCLK;
+	//< IOFIFO reset shift register.
+	reg [3:0] fifo_reset_shift_reg = {4{1'b0}};
+	//< IOFIFO reset.
+	reg fifo_reset_SYSCLK = 0;
 	//< Input buffer disable.
 	reg datapath_disable = 1;
 
@@ -175,19 +194,28 @@ module RITC_dual_datapath_v2(
 	reg [4:0] r1_vcdl_delay = {5{1'b0}};
 	//< VCDL load for R1.
 	reg r1_vcdl_delay_load = 0;
-	//< Initiate single VCDL pulse.
+	//< Initiate single VCDL pulse for R0.
 	reg vcdl_pulse_R0 = 0;
+	//< Initiate single VCDL pulse for R1.
 	reg vcdl_pulse_R1 = 0;
-	//< VCDL pulse signal, in SYSCLK domain.
+	//< VCDL pulse signal, in SYSCLK domain, for R0.
 	wire vcdl_pulse_flag_SYSCLK_R0;
+	//< VCDL pulse signal, in SYSCLK domain, for R1.
 	wire vcdl_pulse_flag_SYSCLK_R1;
-	//< Continuous VCDL.
+	//< Continuous VCDL for R0.
 	reg vcdl_enable_R0 = 0;
+	//< Continuous VCDL for R1.
 	reg vcdl_enable_R1 = 0;
-	//< Continuous VCDL enable, in SYSCLK domain.
-	//reg [1:0] vcdl_enable_SYSCLK = {2{1'b0}};
+	//< VCDL pulse request seen (in SYSCLK domain) for R0.
+	reg vcdl_pulse_seen_R0 = 0;
+	//< VCDL pulse request seen (in SYSCLK domain) for R1.
+	reg vcdl_pulse_seen_R1 = 0;
+
+	//< Continuous VCDL enable, in SYSCLK domain, for R0.
 	reg [1:0] vcdl_enable_SYSCLK_R0 = {2{1'b0}};
+	//< Continuous VCDL enable, in SYSCLK domain, for R1.
 	reg [1:0] vcdl_enable_SYSCLK_R1 = {2{1'b0}};
+
 
 	//< Deserialized data for each bit.
 	wire [47:0] data_deserdes[5:0];
@@ -343,25 +371,10 @@ module RITC_dual_datapath_v2(
 		if (train_latch_done_user_clk || !train_latch_enable) train_latch_busy <= 0;
 		else if (train_latch_enable) train_latch_busy <= 1;
 	end
-
-	// Flag SYSCLK that it should latch data.
-	flag_sync u_train_latch(.in_clkA(train_latch_enable && !train_latch_busy), .clkA(user_clk_i),
-									.out_clkB(train_latch_enable_SYSCLK), .clkB(SYSCLK));
-	// Flag user_clock back that the train latch is done.
-	flag_sync u_train_latch_done(.in_clkA(train_latch_has_seen_SYNC),.clkA(SYSCLK),
-										  .out_clkB(train_latch_done_user_clk),.clkB(user_clk_i));
-		
-	// SYSCLK logic.
-	flag_sync u_vcdl_pulse_sync_R0(.in_clkA(vcdl_pulse_R0),.clkA(user_clk_i),
-											.out_clkB(vcdl_pulse_SYSCLK_R0), .clkB(SYSCLK));
-	flag_sync u_vcdl_pulse_sync_R1(.in_clkA(vcdl_pulse_R1),.clkA(user_clk_i),
-											.out_clkB(vcdl_pulse_SYSCLK_R1), .clkB(SYSCLK));										
-	flag_sync u_fifo_reset(.in_clkA(fifo_reset),.clkA(user_clk_i),
-								  .out_clkB(fifo_reset_SYSCLK),.clkB(SYSCLK));
 	
-	
-	reg vcdl_pulse_seen_R0 = 0;
-	reg vcdl_pulse_seen_R1 = 0;
+	always @(posedge DATACLK_DIV2) begin
+		serdes_reset_flag_DATACLK_DIV2 <= serdes_reset_DATACLK_DIV2;
+	end
 	
 	always @(posedge SYSCLK) begin
 		// So the 2 possible sequences here are:
@@ -400,7 +413,38 @@ module RITC_dual_datapath_v2(
 		train_disable_SYSCLK <= train_disable;
 		
 		fifo_enable_SYSCLK <= {fifo_enable_SYSCLK[0],fifo_enable};
+
+		// FIFO reset. Reset must be held high for 4 SYSCLK cycles.
+		if (fifo_reset_request_SYSCLK && !fifo_reset_SYSCLK) fifo_reset_shift_reg[0] <= 1;
+		else fifo_reset_shift_reg <= 0;
+		
+		fifo_reset_shift_reg[3:1] <= fifo_reset_shift_reg[2:0];
+
+		if (fifo_reset_shift_reg[0]) fifo_reset_SYSCLK <= 1;
+		else if (fifo_reset_shift_reg[3]) fifo_reset_SYSCLK <= 0;
 	end
+
+
+	// Flag SYSCLK that it should latch data.
+	flag_sync u_train_latch(.in_clkA(train_latch_enable && !train_latch_busy), .clkA(user_clk_i),
+									.out_clkB(train_latch_enable_SYSCLK), .clkB(SYSCLK));
+	// Flag user_clock back that the train latch is done.
+	flag_sync u_train_latch_done(.in_clkA(train_latch_has_seen_SYNC),.clkA(SYSCLK),
+										  .out_clkB(train_latch_done_user_clk),.clkB(user_clk_i));
+		
+	//< Flag synchronizer (user_clk -> SYSCLK) for the VCDL pulse requeset for R0.
+	flag_sync u_vcdl_pulse_sync_R0(.in_clkA(vcdl_pulse_R0),.clkA(user_clk_i),
+											.out_clkB(vcdl_pulse_SYSCLK_R0), .clkB(SYSCLK));
+	//< Flag synchronizer (user_clk -> SYSCLK) for the VCDL pulse request for R1.
+	flag_sync u_vcdl_pulse_sync_R1(.in_clkA(vcdl_pulse_R1),.clkA(user_clk_i),
+											.out_clkB(vcdl_pulse_SYSCLK_R1), .clkB(SYSCLK));										
+	//< Flag synchronizer (user_clk -> SYSCLK) for the FIFO reset.
+	flag_sync u_fifo_reset(.in_clkA(fifo_reset),.clkA(user_clk_i),
+								  .out_clkB(fifo_reset_request_SYSCLK),.clkB(SYSCLK));
+	//< Flag synchronizer (user_clk -> SYSCLK) for the SERDES reset.
+	flag_sync u_serdes_reset(.in_clkA(serdes_reset),.clkA(user_clk_i),
+									 .out_clkB(serdes_reset_DATACLK_DIV2),.clkB(DATACLK_DIV2));
+
 
 	// Full VCDL outputs.
 	// These are hard macros, which put the flipflop for the VCDL output
@@ -444,23 +488,29 @@ module RITC_dual_datapath_v2(
 		for (j_ch=0;j_ch<NUM_CH;j_ch=j_ch+1) begin : CH_LOOP
 			for (i_bit=0;i_bit<NUM_BIT;i_bit=i_bit+1) begin : BIT_LOOP
 				// bit_select[3:0] == bit (from 0-11, 15 is special)
-				// bit_select[6:4] == channel (from 0-5)
+				// bit_select[6:4] == channel (from 0-7).
+				//                    channels 0-3 are RITC0 (3 is unused)
+				//                    channels 4-7 are RITC1 (7 is unused)
 				assign data_idelay_load[j_ch][i_bit] = 
-					delay_load && (delay_bit_select[3:0] == i_bit) && (delay_bit_select[6:4]==j_ch);
+					delay_load && (delay_bit_select[3:0] == i_bit) && 
+					(((j_ch >= 3) && delay_bit_select[6] && (delay_bit_select[5:4] == (j_ch-3))) ||
+					 ((j_ch < 3) && !delay_bit_select[6] && (delay_bit_select[5:4] == j_ch)));
 				assign data_iserdes_bitslip[j_ch][i_bit] = 
-					bitslip && (train_bit_select[3:0] == i_bit) && (train_bit_select[6:4]==j_ch);
+					bitslip && (train_bit_select[3:0] == i_bit) && 
+					(((j_ch >= 3) && train_bit_select[6] && (train_bit_select[5:4] == (j_ch-3))) ||
+					 ((j_ch < 3) && !train_bit_select[6] && (train_bit_select[5:4] == j_ch)));
 				// Data path for this bit.
-				glitc_data_path_wrapper u_dp(.SYSCLK(SYSCLK),.DATACLK(DATACLK),
-													  .DATACLK_DIV2(DATACLK_DIV2),.SYSCLK_DIV2_PS(SYSCLK_DIV2_PS),
-													  .IN_P(ch_in[j_ch][i_bit]), .IN_N(ch_in_b[j_ch][i_bit]),
-													  .clk_i(user_clk_i),
-													  .delay_clk_i(delay_in),
-													  .load_clk_i(data_idelay_load[j_ch][i_bit]),
-													  .bitslip_clk_i(data_iserdes_bitslip[j_ch][i_bit]),
-													  .serdes_rst_clk_i(serdes_reset),
+				glitc_data_path_wrapper #(.USE_HARD_MACRO("NO"), .POLARITY(BIT_POLARITY[j_ch*12+i_bit])) u_dp(.SYSCLK(SYSCLK),.DATACLK(DATACLK),
+																					  .DATACLK_DIV2(DATACLK_DIV2),.SYSCLK_DIV2_PS(SYSCLK_DIV2_PS),
+																					  .IN_P(ch_in[j_ch][i_bit]), .IN_N(ch_in_b[j_ch][i_bit]),
+																					  .clk_i(user_clk_i),
+																					  .delay_clk_i(delay_in),
+																					  .load_clk_i(data_idelay_load[j_ch][i_bit]),
+																					  .bitslip_clk_i(data_iserdes_bitslip[j_ch][i_bit]),
+																					  .serdes_rst_DATACLK_DIV2_i(serdes_reset_flag_DATACLK_DIV2),
 
-													  .serdes_DATACLK_DIV2_o(data_deserdes[j_ch][4*i_bit +: 4]),
-													  .q_SYSCLK_DIV2_PS_o(ch_b_q[j_ch][i_bit]));
+																					  .serdes_DATACLK_DIV2_o(data_deserdes[j_ch][4*i_bit +: 4]),
+																					  .q_SYSCLK_DIV2_PS_o(ch_b_q[j_ch][i_bit]));
 				always @(posedge SYSCLK) begin
 					if (valid_o) begin
 						if (SYNC) train_latch[j_ch][i_bit][7:4] <= data_buffered[j_ch][4*i_bit +: 4];
@@ -522,7 +572,11 @@ module RITC_dual_datapath_v2(
 													.p_q_o(refclk_q[j_ch]),
 													.n_q_o(CLK_B_Q[j_ch]));													
 			assign clock_idelay_load[j_ch] = 
-				delay_load && (delay_bit_select[3:0] == 4'hF) && (delay_bit_select[6:4] == j_ch);
+				delay_load && (delay_bit_select[3:0] == 4'hF) &&
+					(((j_ch >= 3) && delay_bit_select[6] && (delay_bit_select[5:4] == (j_ch-3))) ||
+					 ((j_ch < 3) && !delay_bit_select[6] && (delay_bit_select[5:4] == j_ch)));
+
+
 		end
 		for (i_bit=0;i_bit<16;i_bit=i_bit+1) begin : EXPAND2
 			assign train_latch_expanded[0][3][i_bit] = train_latch_expanded[0][1][i_bit];
@@ -590,12 +644,25 @@ module RITC_dual_datapath_v2(
 	assign CH4_Q = ch_b_q[4];
 	assign CH5_Q = ch_b_q[5];
 	
-	assign CH0_OUT = data_buffered[0];
-	assign CH1_OUT = data_buffered[1];
-	assign CH2_OUT = data_buffered[2];
-	assign CH3_OUT = data_buffered[3];
-	assign CH4_OUT = data_buffered[4];
-	assign CH5_OUT = data_buffered[5];
+	function [47:0] reorder_in_samples;
+		input [47:0] signal_order;
+		integer ris_i;
+		begin
+			for (ris_i=0;ris_i<4;ris_i=ris_i+1) begin
+				reorder_in_samples[12*ris_i +: 3] = {signal_order[8+ris_i],signal_order[4+ris_i],signal_order[0+ris_i]};
+				reorder_in_samples[(12*ris_i+3) +: 3] = {signal_order[20+ris_i],signal_order[16+ris_i],signal_order[12+ris_i]};
+				reorder_in_samples[(12*ris_i+6) +: 3] = {signal_order[32+ris_i],signal_order[28+ris_i],signal_order[24+ris_i]};
+				reorder_in_samples[(12*ris_i+9) +: 3] = {signal_order[44+ris_i],signal_order[40+ris_i],signal_order[36+ris_i]};
+			end
+		end
+	endfunction
+	
+	assign CH0_OUT = reorder_in_samples(data_buffered[0]);
+	assign CH1_OUT = reorder_in_samples(data_buffered[1]);
+	assign CH2_OUT = reorder_in_samples(data_buffered[2]);
+	assign CH3_OUT = reorder_in_samples(data_buffered[3]);
+	assign CH4_OUT = reorder_in_samples(data_buffered[4]);
+	assign CH5_OUT = reorder_in_samples(data_buffered[5]);
 
 	assign TRAIN_ON = {2{train_disable}};
 

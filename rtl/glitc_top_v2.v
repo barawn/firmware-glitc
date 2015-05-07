@@ -81,10 +81,10 @@ module glitc_top_v2(
 
 	localparam [3:0] VER_BOARDREV = 0;
 	localparam [3:0] VER_MONTH = 5;
-	localparam [7:0] VER_DAY = 1;
+	localparam [7:0] VER_DAY = 6;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 1;
-	localparam [7:0] VER_REV = 16;
+	localparam [7:0] VER_REV = 20;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -123,19 +123,34 @@ module glitc_top_v2(
 	reg glitc_sync = 0;
 
 	// Output data and selects.
-	wire sel_ctrl = (gb_address[7:4] == 4'h00);
+	// Largest output store occurs at the data readout, which
+	// is 96 bits x 512 samples, which is 32 bits x 1536 addresses, requiring 2048
+	// entries of address space. Therefore:
+	// 0x000 - 0x7FF : Register space
+	// 0x800 - 0xFFF : Sample storage
+	// and bit [11] is used to select.
+	
+	wire sel_registers = !gb_address[11];
+	wire sel_sample = gb_address[11];
+	wire sel_ctrl = sel_registers && (gb_address[7:4] == 4'h00);
 	wire [31:0] ctrl_data;
-	wire sel_ps = (gb_address[7:4] == 4'h01);
+	wire sel_ps = sel_registers && (gb_address[7:4] == 4'h01);
 	wire [31:0] ps_data;
-	wire sel_datapath = (gb_address[7:4] == 4'h02) || (gb_address[7:4] == 4'h06);
+	wire sel_datapath = sel_registers && (gb_address[7:4] == 4'h02);
 	wire [31:0] datapath_data;
-	wire sel_ritc = (gb_address[7:4] == 4'h03) || (gb_address[7:4] == 4'h07);
-	wire [31:0] ritc_data = {32{1'b0}};
-	wire sel_dac = (gb_address[7:4] == 4'h04);
+	wire sel_ritc = sel_registers && ((gb_address[7:4] == 4'h03));
+	wire [31:0] ritc_data;
+	wire sel_dac = sel_registers && (gb_address[7:4] == 4'h04);
 	wire [31:0] dac_data;
-	wire sel_i2c_data = (gb_address[7:4] == 4'h05);
+	wire sel_i2c_data = sel_registers && (gb_address[7:4] == 4'h05);
 	wire [31:0] i2c_data;
+	wire sel_glitccomm_data = sel_registers && (gb_address[7:4] == 4'h06);
+	wire [31:0] glitccomm_data = {32{1'b0}};
+	wire sel_trigger = sel_registers && (gb_address[7:4] == 4'h07);
+	wire [31:0] trigger_data = {32{1'b0}};
 
+	wire [31:0] sample_storage_data;
+	
    glitcbus_slave_v2 u_slave(.gclk_i(gb_clk),
 			  .GRDWR_B(GRDWR_B),
 			  .GSEL_B(GSEL_B),
@@ -302,10 +317,24 @@ module glitc_top_v2(
 															 .debug_o(ps_debug));
 															 
 	// Pointless single correlation. Put this here so it does *something*... anything.														 
-	wire [11:0] corr_R0;
-	wire [11:0] corr_R1;
-	single_corr_v6 u_corr_R0(.clk(SYSCLK),.A(R0_DATA[0]),.B(R0_DATA[1]),.C(R0_DATA[2]),.CORR(corr_R0));
-	single_corr_v6 u_corr_R1(.clk(SYSCLK),.A(R1_DATA[0]),.B(R1_DATA[1]),.C(R1_DATA[2]),.CORR(corr_R1));
+	wire [31:0] debug_ritc;
+	wire [11:0] R0_MAX;
+	wire [11:0] R1_MAX;
+	dual_RITC_correlator_v1 u_correlator(.sysclk_i(SYSCLK),.sync_i(SYNC),
+													 .A(R0_DATA[0]),.B(R0_DATA[1]),.C(R0_DATA[2]),
+													 .D(R1_DATA[0]),.E(R1_DATA[1]),.F(R1_DATA[2]),
+													 .R0_MAX(R0_MAX),
+													 .R1_MAX(R1_MAX),
+													 .user_clk_i(gb_clk),
+													 .user_sel_i(sel_ritc),
+													 .user_wr_i(gb_wr),
+													 .user_rd_i(gb_rd),
+													 .user_addr_i(gb_address[10:0]),
+													 .user_dat_i(gb_data_from_tisc),
+													 .user_dat_o(ritc_data),
+													 .sample_sel_i(sel_sample),
+													 .sample_dat_o(sample_storage_data),
+													 .debug_o(debug_ritc));
 
 	GLITC_clock_generator u_clock_generator(.GA_SYSCLK_P(GA_SYSCLK_P),
 														 .GA_SYSCLK_N(GA_SYSCLK_N),
@@ -322,9 +351,6 @@ module glitc_top_v2(
 														 .DATACLK_DIV2(DATACLK_DIV2));
 	always @(posedge SYSCLK) glitc_sync <= ~glitc_sync;
 	assign SYNC = glitc_sync;
-
-	wire [70:0] debug_ritc;
-	assign debug_ritc = {corr_R0, corr_R1};
 
 	// We'll split up the firmware as such:
    // All RITC datapath, GLITC logic, etc. goes in the
@@ -358,10 +384,10 @@ module glitc_top_v2(
 	assign gb_data_to_tisc[3] = ritc_data;
 	assign gb_data_to_tisc[4] = dac_data;
 	assign gb_data_to_tisc[5] = i2c_data;
-	assign gb_data_to_tisc[6] = datapath_data;
-	assign gb_data_to_tisc[7] = ritc_data;
+	assign gb_data_to_tisc[6] = glitccomm_data;
+	assign gb_data_to_tisc[7] = trigger_data;
 	
-   assign gb_data_to_tisc_mux = gb_data_to_tisc[gb_address[6:4]];
+   assign gb_data_to_tisc_mux = (sel_registers) ? gb_data_to_tisc[gb_address[6:4]] : sample_storage_data;
 	
 	wire [35:0] ila0_control;
 	wire [35:0] ila1_control;
