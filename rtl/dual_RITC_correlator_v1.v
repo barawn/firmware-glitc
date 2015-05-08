@@ -35,12 +35,105 @@ module dual_RITC_correlator_v1(
 		output[31:0] debug_o
     );
 
-	wire [11:0] corr_R0;
-	wire [11:0] corr_R1;
-	single_corr_v6 u_corr_R0(.clk(SYSCLK),.A(A),.B(B),.C(C),.CORR(corr_R0));
-	single_corr_v6 u_corr_R1(.clk(SYSCLK),.A(D),.B(E),.C(F),.CORR(corr_R1));
-	assign debug_o[0 +: 12] = corr_R0;
-	assign debug_o[12 +: 12] = corr_R1;	
+	// For the correlations, we need to store 2, 3, and 4 clocks worth of data.
+	localparam NBITS = 48;
+	// Only 4 correlations currently. Note that the "old" setup used 58 correlations,
+	// but those were clearly crap. So we'll have to refigure this stuff anyway.
+	localparam NCORR = 4;
+	
+	wire [2*NBITS-1:0] A_store;
+	wire [3*NBITS-1:0] B_store;
+	wire [4*NBITS-1:0] C_store;
+	wire [2*NBITS-1:0] D_store;
+	wire [3*NBITS-1:0] E_store;
+	wire [4*NBITS-1:0] F_store;
+
+	wire [11:0] CORR_R0[NCORR-1:0];
+	wire [11:0] CORR_R1[NCORR-1:0];
+	
+	RITC_input_storage u_storage_R0(.clk_i(sysclk_i),.A_i(A),.B_i(B),.C_i(C),
+															    .AS_o(A_store),.BS_o(B_store),.CS_o(C_store));
+	RITC_input_storage u_storage_R1(.clk_i(sysclk_i),.A_i(D),.B_i(E),.C_i(F),
+																 .AS_o(D_store),.BS_o(E_store),.CS_o(F_store));
+
+	// Note that this is a lot simpler than the complicated CMAP16/MAP/etc. macros.
+	// This is because I realized that with the vectorized inputs, you can just offset the whole damn thing.
+	// An offset of 0 means you map 0 - 47 (16 samples)
+	// An offset of 1 means you map 3 - 49 (16 samples) etc.
+	`define R0_QUAD_CORRELATOR( a , b , c , d , e , f,  g, h, i, j, k, l, m, n, o, p) 	\
+		quad_corr_v7 u_r0quadcorr``a( .clk(sysclk_i), 													\
+											 .A0( A_store[ 3*b +: NBITS ] ),								\
+											 .B0( B_store[ 3*c +: NBITS ] ),								\
+											 .C0( C_store[ 3*d +: NBITS ] ),								\
+											 .A1( A_store[ 3*f +: NBITS ] ),								\
+											 .B1( B_store[ 3*g +: NBITS ] ),								\
+											 .C1( C_store[ 3*h +: NBITS ] ),								\
+											 .A2( A_store[ 3*j +: NBITS ] ),								\
+											 .B2( B_store[ 3*k +: NBITS ] ),								\
+											 .C2( C_store[ 3*l +: NBITS ] ),								\
+											 .A3( A_store[ 3*n +: NBITS ] ),								\
+											 .B3( B_store[ 3*o +: NBITS ] ),								\
+											 .C3( C_store[ 3*p +: NBITS ] ),								\
+											 .CORR0( CORR_R0[ a ] ),										\
+											 .CORR1( CORR_R0[ e ] ),										\
+											 .CORR2( CORR_R0[ i ] ),										\
+											 .CORR3( CORR_R0[ m ] ))
+	`define R1_QUAD_CORRELATOR( a , b , c , d , e , f,  g, h, i, j, k, l, m, n, o, p) 	\
+		quad_corr_v7 u_r1quadcorr``a( .clk(sysclk_i), 													\
+											 .A0( D_store[ 3*b +: NBITS ] ),								\
+											 .B0( E_store[ 3*c +: NBITS ] ),								\
+											 .C0( F_store[ 3*d +: NBITS ] ),								\
+											 .A1( D_store[ 3*f +: NBITS ] ),								\
+											 .B1( E_store[ 3*g +: NBITS ] ),								\
+											 .C1( F_store[ 3*h +: NBITS ] ),								\
+											 .A2( D_store[ 3*j +: NBITS ] ),								\
+											 .B2( E_store[ 3*k +: NBITS ] ),								\
+											 .C2( F_store[ 3*l +: NBITS ] ),								\
+											 .A3( D_store[ 3*n +: NBITS ] ),								\
+											 .B3( E_store[ 3*o +: NBITS ] ),								\
+											 .C3( F_store[ 3*p +: NBITS ] ),								\
+											 .CORR0( CORR_R1[ a ] ),										\
+											 .CORR1( CORR_R1[ e ] ),										\
+											 .CORR2( CORR_R1[ i ] ),										\
+											 .CORR3( CORR_R1[ m ] ))
+
+	`R0_QUAD_CORRELATOR( 0 , 0 , 30, 42,
+								1 , 0 , 29, 41,
+								2 , 0 , 29, 40,
+								3 , 0 , 28, 39 );
+	`R1_QUAD_CORRELATOR( 0 , 0 , 30, 42,
+								1 , 0 , 29, 41,
+								2 , 0 , 29, 40,
+								3 , 0 , 28, 39 );
+
+	reg [11:0] r0_max_0 = {12{1'b0}};
+	reg [11:0] r0_max_1 = {12{1'b0}};
+	reg [11:0] r0_max = {12{1'b0}};
+	reg [11:0] r1_max_0 = {12{1'b0}};
+	reg [11:0] r1_max_1 = {12{1'b0}};
+	reg [11:0] r1_max = {12{1'b0}};
+	always @(posedge sysclk_i) begin
+		if (CORR_R0[0] > CORR_R0[1]) r0_max_0 <= CORR_R0[0];
+		else r0_max_0 <= CORR_R0[1];
+		
+		if (CORR_R0[2] > CORR_R0[3]) r0_max_1 <= CORR_R0[2];
+		else r0_max_1 <= CORR_R0[3];
+		
+		if (r0_max_0 > r0_max_1) r0_max <= r0_max_0;
+		else r0_max <= r0_max_1;
+		
+		if (CORR_R1[0] > CORR_R1[1]) r1_max_0 <= CORR_R1[0];
+		else r1_max_0 <= CORR_R1[1];
+		
+		if (CORR_R1[2] > CORR_R1[3]) r1_max_1 <= CORR_R1[2];
+		else r1_max_1 <= CORR_R1[3];
+		
+		if (r1_max_0 > r1_max_1) r1_max <= r1_max_0;
+		else r1_max <= r1_max_1;
+	end
+	
+	assign debug_o = {r1_max, r0_max};
+
 
 	// Moron buffer storage. There's no pretrigger anything here: nothing smart, nothing intelligent, nothing.
 	// Implementing a pretrigger is the next step.
