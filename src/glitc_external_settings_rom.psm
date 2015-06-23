@@ -132,7 +132,6 @@ update_mcp4728_0_dacB:
 	add	s8, 01
 	; Low byte
 	input	sA, 12
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -154,7 +153,6 @@ update_mcp4728_0_dacC:
 	add	s8, 01
 	; Low byte
 	input	sA, 14
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -176,7 +174,6 @@ update_mcp4728_0_dacD:
 	add	s8, 01
 	; Low byte
 	input	sA, 16
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -230,7 +227,6 @@ update_mcp4728_1_dacB:
 	add	s8, 01
 	; Low byte
 	input	sA, 1A
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -252,7 +248,6 @@ update_mcp4728_1_dacC:
 	add	s8, 01
 	; Low byte
 	input	sA, 1C
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -274,7 +269,6 @@ update_mcp4728_1_dacD:
 	add	s8, 01
 	; Low byte
 	input	sA, 1E
-	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
