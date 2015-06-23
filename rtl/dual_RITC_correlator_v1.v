@@ -19,8 +19,8 @@ module dual_RITC_correlator_v1(
 		input [47:0] D,
 		input [47:0] E,
 		input [47:0] F,
-		output [11:0] R0_MAX,
-		output [11:0] R1_MAX,
+		output [10:0] R0_MAX,
+		output [10:0] R1_MAX,
 		
 		input user_clk_i,
 		input user_sel_i,
@@ -35,11 +35,12 @@ module dual_RITC_correlator_v1(
 		output[31:0] debug_o
     );
 
+	localparam NCORRBITS = 10;
 	// For the correlations, we need to store 2, 3, and 4 clocks worth of data.
 	localparam NBITS = 48;
 	// Only 4 correlations currently. Note that the "old" setup used 58 correlations,
 	// but those were clearly crap. So we'll have to refigure this stuff anyway.
-	localparam NCORR = 4;
+	localparam NCORR = 8;
 	
 	wire [2*NBITS-1:0] A_store;
 	wire [3*NBITS-1:0] B_store;
@@ -48,8 +49,20 @@ module dual_RITC_correlator_v1(
 	wire [3*NBITS-1:0] E_store;
 	wire [4*NBITS-1:0] F_store;
 
-	wire [11:0] CORR_R0[NCORR-1:0];
-	wire [11:0] CORR_R1[NCORR-1:0];
+	wire [NCORRBITS-1:0] CORR_R0[NCORR-1:0];
+	wire [NCORRBITS-1:0] CORR_R1[NCORR-1:0];
+	wire [NCORRBITS*NCORR-1:0] CORR_R0_CONCAT;
+	wire [NCORRBITS*NCORR-1:0] CORR_R1_CONCAT;
+	wire [NCORRBITS-1:0] max_R0;
+	wire [NCORRBITS-1:0] max_R1;
+	generate
+		genvar ci;
+		for (ci=0;ci<NCORR;ci=ci+1) begin : CORR_CONCAT
+			assign CORR_R0_CONCAT[NCORRBITS*ci +: NCORRBITS] = CORR_R0[ci];
+			assign CORR_R1_CONCAT[NCORRBITS*ci +: NCORRBITS] = CORR_R1[ci];
+		end
+	endgenerate
+	
 	
 	RITC_input_storage u_storage_R0(.clk_i(sysclk_i),.A_i(A),.B_i(B),.C_i(C),
 															    .AS_o(A_store),.BS_o(B_store),.CS_o(C_store));
@@ -101,40 +114,28 @@ module dual_RITC_correlator_v1(
 								1 , 0 , 29, 41,
 								2 , 0 , 29, 40,
 								3 , 0 , 28, 39 );
+	`R0_QUAD_CORRELATOR( 4 , 0 , 28, 38,
+								5 , 0 , 27, 37,
+								6 , 0 , 27, 36,
+								7 , 0 , 26, 36);
 	`R1_QUAD_CORRELATOR( 0 , 0 , 30, 42,
 								1 , 0 , 29, 41,
 								2 , 0 , 29, 40,
 								3 , 0 , 28, 39 );
+	`R1_QUAD_CORRELATOR( 4 , 0 , 28, 38,
+								5 , 0 , 27, 37,
+								6 , 0 , 27, 36,
+								7 , 0 , 26, 36);
 
-	reg [11:0] r0_max_0 = {12{1'b0}};
-	reg [11:0] r0_max_1 = {12{1'b0}};
-	reg [11:0] r0_max = {12{1'b0}};
-	reg [11:0] r1_max_0 = {12{1'b0}};
-	reg [11:0] r1_max_1 = {12{1'b0}};
-	reg [11:0] r1_max = {12{1'b0}};
-	always @(posedge sysclk_i) begin
-		if (CORR_R0[0] > CORR_R0[1]) r0_max_0 <= CORR_R0[0];
-		else r0_max_0 <= CORR_R0[1];
-		
-		if (CORR_R0[2] > CORR_R0[3]) r0_max_1 <= CORR_R0[2];
-		else r0_max_1 <= CORR_R0[3];
-		
-		if (r0_max_0 > r0_max_1) r0_max <= r0_max_0;
-		else r0_max <= r0_max_1;
-		
-		if (CORR_R1[0] > CORR_R1[1]) r1_max_0 <= CORR_R1[0];
-		else r1_max_0 <= CORR_R1[1];
-		
-		if (CORR_R1[2] > CORR_R1[3]) r1_max_1 <= CORR_R1[2];
-		else r1_max_1 <= CORR_R1[3];
-		
-		if (r1_max_0 > r1_max_1) r1_max <= r1_max_0;
-		else r1_max <= r1_max_1;
-	end
-	
-	assign debug_o = {r1_max, r0_max};
-
-
+	RITC_compare_tree #(.NUM_CORR(NCORR),.NUM_BITS(NCORRBITS)) u_compare_R0(.clk_i(sysclk_i),
+																					 .corr_i(CORR_R0_CONCAT),
+																					 .max_o(max_R0));
+	RITC_compare_tree #(.NUM_CORR(NCORR),.NUM_BITS(NCORRBITS)) u_compare_R1(.clk_i(sysclk_i),
+																					 .corr_i(CORR_R1_CONCAT),
+																					 .max_o(max_R1));
+	assign debug_o = {max_R1, max_R0};
+	assign R0_MAX = max_R0;
+	assign R1_MAX = max_R1;
 	// Moron buffer storage. There's no pretrigger anything here: nothing smart, nothing intelligent, nothing.
 	// Implementing a pretrigger is the next step.
 	

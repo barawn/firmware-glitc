@@ -53,10 +53,10 @@ module quad_corr_v7(
 	input [NCBITS-1:0] B3;
 	input [NCBITS-1:0] C3;
 	
-	output [12:0] CORR0;
-	output [12:0] CORR1;
-	output [12:0] CORR2;
-	output [12:0] CORR3;
+	output [10:0] CORR0;
+	output [10:0] CORR1;
+	output [10:0] CORR2;
+	output [10:0] CORR3;
 	
 	input clk;
 
@@ -77,7 +77,8 @@ module quad_corr_v7(
 	wire [47:0] DSP_CASCADE[5:0];
 	//% Direct DSP outputs. Only 3 of these since just the second part has them connected. Only 1 of these is used.
 	wire [NDSPBITS-1:0] DSP_OUTPUT[2:0][3:0];
-
+	//% Final-stage outputs.
+	wire [NDSPBITS-1:0] DSP_SUM[3:0];
 
 	`define VECTORIZE( x ) \
 		assign x [0] = x``0; \
@@ -160,11 +161,15 @@ module quad_corr_v7(
 						 .C(DSP_INPUT[6][2]), .D(DSP_INPUT[6][3]),
 						 .E(DSP_INPUT[6][4]), .F(DSP_INPUT[6][5]),
 						 .G(DSP_INPUT[6][6]), .H(DSP_INPUT[6][7]),
-						 .APB(CORR0),
-						 .CPD(CORR1),
-						 .EPF(CORR2),
-						 .GPH(CORR3),
+						 .APB(DSP_SUM[0]),
+						 .CPD(DSP_SUM[1]),
+						 .EPF(DSP_SUM[2]),
+						 .GPH(DSP_SUM[3]),
 						 .CASC_IN(DSP_CASCADE[5]),
 						 .CLK(clk));
+	assign CORR0 = DSP_SUM[0][10:0];
+	assign CORR1 = DSP_SUM[1][10:0];
+	assign CORR2 = DSP_SUM[2][10:0];
+	assign CORR3 = DSP_SUM[3][10:0];
 
 endmodule
