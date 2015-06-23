@@ -25,7 +25,7 @@
  * 0x2	: DPTRAINING[31:0]
  * 0x3	: DPCOUNTER[31:0]
  * 0x4	: DPIDELAY[31:0]
- *
+ * 0x5	: DPSCALER[31:0]
  */
 (* SHREG_EXTRACT = "NO" *)
 module RITC_dual_datapath_v2(
@@ -79,6 +79,7 @@ module RITC_dual_datapath_v2(
 		input user_clk_i,
 		input user_sel_i,
 		input user_wr_i,
+		input user_rd_i,
 		input [3:0] user_addr_i,
 		input [31:0] user_dat_i,
 		output [31:0] user_dat_o,
@@ -87,6 +88,9 @@ module RITC_dual_datapath_v2(
 	 
 	localparam NUM_CH=6;
 	localparam NUM_BIT=12;
+	
+	// SYNC value in SYSCLK domain the first 4 samples are on the ISERDES output.
+	localparam SYNC_FIRST_SAMPLE = 0;
 	
 	
 	// THIS IS MAGIC
@@ -135,6 +139,23 @@ module RITC_dual_datapath_v2(
 	reg [7:0] train_bit_select = {8{1'b0}};
 	//< Training select, in sample view mode.
 	wire [7:0] train_sample_select = {train_bit_select[6:4],train_bit_select[7],train_bit_select[3:0]};
+
+	//// NOTE: Scalers ONLY WORK in sample view. 
+	// They add 1024 instances of train_sync[2:0], and reset after user_rd_i (when counting is done)
+	// or any write to the DPTRAINING register. This means that they can have up to 13 bits. Bit 16
+	// indicates that the count is finished. So you read, and if bit 16 is set, it's valid, else
+	// you read again.
+	//< Scaler counter.
+	reg [9:0] scaler_counter = {10{1'b0}};
+	//< Scaler counter plus one (for overflow detection)
+	wire [10:0] scaler_counter_plus_one = scaler_counter + 1;
+	//< Scaler (OK, actually accumulator).
+	reg [12:0] scaler = {13{1'b0}};
+	//< Add enable for scaler.
+	reg scaler_add = 0;
+	//< Reset for scaler.
+	reg scaler_reset = 0;
+	
 	//< Bitslip.
 	reg bitslip = 0;
 	//< Training disable
@@ -273,13 +294,14 @@ module RITC_dual_datapath_v2(
 	wire [31:0] DPTRAINING;
 	wire [31:0] DPCOUNTER;
 	wire [31:0] DPIDELAY;
-
+	wire [31:0] DPSCALER;
+	
 	assign data_out[0] = DPCTRL0;
 	assign data_out[1] = DPCTRL1;
 	assign data_out[2] = DPTRAINING;
 	assign data_out[3] = DPCOUNTER;
 	assign data_out[4] = DPIDELAY;
-	assign data_out[5] = DPCTRL1;
+	assign data_out[5] = DPSCALER;
 	assign data_out[6] = DPTRAINING;
 	assign data_out[7] = DPCOUNTER;
 	assign data_out[8] = DPCTRL0;
@@ -287,7 +309,7 @@ module RITC_dual_datapath_v2(
 	assign data_out[10] = DPTRAINING;
 	assign data_out[11] = DPCOUNTER;
 	assign data_out[12] = DPIDELAY;
-	assign data_out[13] = DPCTRL1;
+	assign data_out[13] = DPSCALER;
 	assign data_out[14] = DPTRAINING;
 	assign data_out[15] = DPCOUNTER;
 
@@ -361,7 +383,22 @@ module RITC_dual_datapath_v2(
 			delay_bit_select <= user_dat_i[22:16];
 			delay_load <= user_dat_i[31];
 		end else delay_load <= 0;
-
+		// Scaler counter.
+		if (scaler_reset)
+			 scaler_counter <= {10{1'b0}};
+		else if (scaler_add)
+			scaler_counter <= scaler_counter_plus_one;
+		// Reset on a write to the DPTRAINING register or a read from the DPSCALER register
+		// when the count was complete.
+		scaler_reset <= 
+			 (user_sel_i && user_wr_i && user_addr_i == 4'd2) ||
+			 ((user_sel_i && user_rd_i && user_addr_i == 4'd5) && scaler_counter_plus_one[10]);
+		// Scaler/accumulator enable.
+		scaler_add <= (train_latch_done_user_clk && !scaler_counter_plus_one[10] && sample_view);
+		// Scaler/accumulator.
+		if (scaler_reset) scaler <= {13{1'b0}};
+		else if (scaler_add) scaler <= scaler + train_sync[2:0];
+		
 		if (train_latch_done_user_clk && !sample_view) 
 			train_sync <= train_latch_expanded[train_bit_select[6]][train_bit_select[5:4]][train_bit_select[3:0]];
 		else if (train_latch_done_user_clk)
@@ -513,7 +550,8 @@ module RITC_dual_datapath_v2(
 																					  .q_SYSCLK_DIV2_PS_o(ch_b_q[j_ch][i_bit]));
 				always @(posedge SYSCLK) begin
 					if (valid_o) begin
-						if (SYNC) train_latch[j_ch][i_bit][7:4] <= data_buffered[j_ch][4*i_bit +: 4];
+						// Store the train latch in 'ISERDES order' (first sample in MSB).
+						if (SYNC == SYNC_FIRST_SAMPLE) train_latch[j_ch][i_bit][7:4] <= data_buffered[j_ch][4*i_bit +: 4];
 						else		 train_latch[j_ch][i_bit][3:0] <= data_buffered[j_ch][4*i_bit +: 4];
 					end
 				end
@@ -535,24 +573,24 @@ module RITC_dual_datapath_v2(
 
 			for (k_samp=0;k_samp<4;k_samp=k_samp+1) begin : SAMPLE
 				// generate 0,4,8,12
-				assign sample_latch[j_ch][4*k_samp + 0] = {train_latch[j_ch][0][3-k_samp],train_latch[j_ch][1][3-k_samp],train_latch[j_ch][2][3-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 0] = {train_latch[j_ch][2][3-k_samp],train_latch[j_ch][1][3-k_samp],train_latch[j_ch][0][3-k_samp]};
 				// generate 16,20,24,28
-				assign sample_latch[j_ch][4*k_samp + 16] = {train_latch[j_ch][0][7-k_samp],train_latch[j_ch][1][7-k_samp],train_latch[j_ch][2][7-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 16] = {train_latch[j_ch][2][7-k_samp],train_latch[j_ch][1][7-k_samp],train_latch[j_ch][0][7-k_samp]};
 
 				// generate 1,5,9,13
-				assign sample_latch[j_ch][4*k_samp + 1] = {train_latch[j_ch][3][3-k_samp],train_latch[j_ch][4][3-k_samp],train_latch[j_ch][5][3-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 1] = {train_latch[j_ch][5][3-k_samp],train_latch[j_ch][4][3-k_samp],train_latch[j_ch][3][3-k_samp]};
 				// generate 17,21,25,29
-				assign sample_latch[j_ch][4*k_samp + 17] = {train_latch[j_ch][3][7-k_samp],train_latch[j_ch][4][7-k_samp],train_latch[j_ch][5][7-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 17] = {train_latch[j_ch][5][7-k_samp],train_latch[j_ch][4][7-k_samp],train_latch[j_ch][3][7-k_samp]};
 				
 				// generate 2,6,10,14
-				assign sample_latch[j_ch][4*k_samp + 2] = {train_latch[j_ch][6][3-k_samp],train_latch[j_ch][7][3-k_samp],train_latch[j_ch][8][3-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 2] = {train_latch[j_ch][8][3-k_samp],train_latch[j_ch][7][3-k_samp],train_latch[j_ch][6][3-k_samp]};
 				// generate 18,22,26,30
-				assign sample_latch[j_ch][4*k_samp + 18] = {train_latch[j_ch][6][7-k_samp],train_latch[j_ch][7][7-k_samp],train_latch[j_ch][8][7-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 18] = {train_latch[j_ch][8][7-k_samp],train_latch[j_ch][7][7-k_samp],train_latch[j_ch][6][7-k_samp]};
 
 				// generate 3,7,11,15
-				assign sample_latch[j_ch][4*k_samp + 3] = {train_latch[j_ch][9][3-k_samp],train_latch[j_ch][10][3-k_samp],train_latch[j_ch][11][3-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 3] = {train_latch[j_ch][11][3-k_samp],train_latch[j_ch][10][3-k_samp],train_latch[j_ch][9][3-k_samp]};
 				// generate 19,23,27,31
-				assign sample_latch[j_ch][4*k_samp + 19] = {train_latch[j_ch][9][7-k_samp],train_latch[j_ch][10][7-k_samp],train_latch[j_ch][11][7-k_samp]};
+				assign sample_latch[j_ch][4*k_samp + 19] = {train_latch[j_ch][11][7-k_samp],train_latch[j_ch][10][7-k_samp],train_latch[j_ch][9][7-k_samp]};
 			end
 			for (k_samp=0;k_samp<32;k_samp=k_samp+1) begin : EXPAND_SAMPLE
 				if (j_ch < 3) begin : R0
@@ -636,7 +674,8 @@ module RITC_dual_datapath_v2(
 	assign DPCOUNTER = {{12{1'b0}},refclk_select,{6{1'b0}},refclk_counter};
 	// DPIDELAY
 	assign DPIDELAY = {{9{1'b0}},delay_bit_select,{11{1'b0}},delay_in};
-	
+	// DPSCALER
+	assign DPSCALER = {{15{1'b0}},scaler_counter_plus_one[10],{3{1'b0}},scaler};
 	assign CH0_Q = ch_b_q[0];
 	assign CH1_Q = ch_b_q[1];
 	assign CH2_Q = ch_b_q[2];

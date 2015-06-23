@@ -148,6 +148,7 @@ module RITC_full_datapath_v2(
 												.user_sel_i(user_sel_i),
 												.user_addr_i(user_addr_i),
 												.user_wr_i(user_wr_i),
+												.user_rd_i(user_rd_i),
 												.user_dat_i(user_dat_i),
 												.user_dat_o(user_dat_o),
 												.debug_o(debug_o));
