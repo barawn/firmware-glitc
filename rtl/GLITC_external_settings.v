@@ -37,6 +37,30 @@ module GLITC_external_settings(
 		output sda_oen_o
     );
 
+
+	//% Function for converting A/B/C attenuator values to bits.
+	function [4:0] atten0_convert;
+		input [4:0] raw;
+		begin
+			atten0_convert[0] = ~raw[0];
+			atten0_convert[1] = ~raw[1];
+			atten0_convert[2] = ~raw[2];
+			atten0_convert[3] = ~raw[3];
+			atten0_convert[4] = ~raw[4];
+		end
+	endfunction
+	//% Function for converting D/E/F attenuator values to bits.
+	function [4:0] atten1_convert;
+		input [4:0] raw;
+		begin
+			atten1_convert[0] = ~raw[4];
+			atten1_convert[1] = ~raw[3];
+			atten1_convert[2] = ~raw[2];
+			atten1_convert[3] = ~raw[1];
+			atten1_convert[4] = ~raw[0];
+		end
+	endfunction			
+
 	// We have 16 32-bit registers. Fundamentally we have 14 things we need to set.
 	// Therefore we have...
 	//
@@ -203,12 +227,12 @@ module GLITC_external_settings(
 	//// Attenuator multiplexing.
 	wire [5:0] pb_atten_settings[7:0];
 	//// Reverse the first 3 attenuator inputs into the PicoBlaze.
-	bit_reverser #(.WIDTH(6)) u_reverse_atten_0(atten_settings[0], pb_atten_settings[0]);
-	bit_reverser #(.WIDTH(6)) u_reverse_atten_1(atten_settings[1], pb_atten_settings[1]);
-	bit_reverser #(.WIDTH(6)) u_reverse_atten_2(atten_settings[2], pb_atten_settings[2]);
-	assign pb_atten_settings[3] = atten_settings[3];
-	assign pb_atten_settings[4] = atten_settings[4];
-	assign pb_atten_settings[5] = atten_settings[5];
+	assign pb_atten_settings[0] = atten0_convert(atten_settings[0]); 
+	assign pb_atten_settings[1] = atten0_convert(atten_settings[1]); 
+	assign pb_atten_settings[2] = atten0_convert(atten_settings[2]); 
+	assign pb_atten_settings[3] = atten1_convert(atten_settings[3]);
+	assign pb_atten_settings[4] = atten1_convert(atten_settings[4]);
+	assign pb_atten_settings[5] = atten1_convert(atten_settings[5]);
 	assign pb_atten_settings[6] = pb_atten_settings[2];
 	assign pb_atten_settings[7] = pb_atten_settings[3];
 	wire [7:0] pb_atten_mux_byte = {{2{1'b0}},pb_atten_settings[pb_port[2:0]]};
