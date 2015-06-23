@@ -56,25 +56,47 @@ module GLITC_datapath_buffers(
 		output [47:0] OUT4,
 		output [47:0] OUT5
     );
-
-	reg en_sysclk_p = 0;
-	reg en_sysclk_n = 0;
-	reg en_dataclk_div2 = 0;
-	reg ack_dataclk_div2 = 0;
+	// Version here handles dealing with the relative time of DATACLK_DIV2 and SYSCLK.
+	// Everywhere else they're treated as purely asynchronous so it's not a problem.
+	// With Version = 0, the two clocks were too close to use identical edges, so
+	// an edge flop was used to make sure clock skew was OK.
+	// With Version = 1, the two clocks are a distance off (2.5 ns) so it shouldn't
+	// be a problem.
+	parameter VERSION = 1;
 	reg ack_sysclk = 0;
+	reg en_dataclk_div2 = 0;
+	
+	generate
+		if (VERSION == 0) begin : V0
+			reg en_sysclk_p = 0;
+			reg en_sysclk_n = 0;
+			reg ack_dataclk_div2 = 0;
 
-	// FIFO control handling.
-	always @(posedge SYSCLK) begin
-		en_sysclk_p <= en_i;
-		ack_sysclk <= ack_dataclk_div2;
-	end
-	always @(negedge SYSCLK) begin
-		en_sysclk_n <= en_sysclk_p;
-	end
-	always @(posedge DATACLK_DIV2) begin
-		en_dataclk_div2 <= en_sysclk_n;
-		ack_dataclk_div2 <= en_dataclk_div2;
-	end
+			// FIFO control handling.
+			always @(posedge SYSCLK) begin
+				en_sysclk_p <= en_i;
+				ack_sysclk <= ack_dataclk_div2;
+			end
+			always @(negedge SYSCLK) begin
+				en_sysclk_n <= en_sysclk_p;
+			end
+			always @(posedge DATACLK_DIV2) begin
+				en_dataclk_div2 <= en_sysclk_n;
+				ack_dataclk_div2 <= en_dataclk_div2;
+			end
+		end else if (VERSION == 1) begin : V1
+			reg en_sysclk_p = 0;
+			reg ack_dataclk_div2 = 0;
+			always @(posedge SYSCLK) begin
+				en_sysclk_p <= en_i;
+				ack_sysclk <= ack_dataclk_div2;
+			end
+			always @(posedge DATACLK_DIV2) begin
+				en_dataclk_div2 <= en_sysclk_p;
+				ack_dataclk_div2 <= en_dataclk_div2;
+			end
+		end
+	endgenerate
 	assign valid_o = ack_sysclk;
 	
 	// Vectorize.
