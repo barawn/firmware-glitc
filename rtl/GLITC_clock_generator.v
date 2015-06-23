@@ -24,8 +24,22 @@ module GLITC_clock_generator(
 		output SYSCLKX2,
 		output SYSCLK_DIV2_PS,
 		output DATACLK,
-		output DATACLK_DIV2		
+		output DATACLK_DIV2,
+		output GICLK,
+		output GICLK_DIV2
     );
+
+//	parameter DATACLK_PHASE = 90;
+//	parameter DATACLK_DIV2_PHASE = 45;
+	// DATACLK = SYSCLK + 1 ns.
+	parameter DATACLK_PHASE = 120;
+	// DATACLK_DIV2 = SYSCLK + 4.65 ns
+	parameter DATACLK_DIV2_PHASE = 240;
+
+	// GICLK = SYSCLK + 2 ns.
+	parameter GICLK_PHASE = 120;
+	// GICLK_DIV2 = SYSCLK + 5.08 ns.
+	parameter GICLK_DIV2_PHASE = 240;
 
 	wire sysclk_in_to_bufg, sysclk_in_bufg;
 	wire sysclk_mult_to_bufg, sysclk_mult;
@@ -61,26 +75,33 @@ module GLITC_clock_generator(
 	wire dataclk_to_bufg, dataclk_bufg;
 	wire dataclk_div2_to_bufg, dataclk_div2_bufg;
 	wire sysclkx2_to_bufg, sysclkx2_bufg;
-
+	wire giclk_to_bufg, giclk_bufg;
+	wire giclk_div2_to_bufg, giclk_div2_to_bufg;
+	
 	wire sysclk_mmcm_locked;
 	wire ps_clock;
 	wire ps_enable;
 	wire ps_increment_ndecrement;
 	wire ps_done;
 
+	// We need ALL of these damn clocks, amazingly.
 	MMCME2_ADV #(.BANDWIDTH("OPTIMIZED"),
 					 .DIVCLK_DIVIDE(1),
 					 .CLKFBOUT_MULT_F(6),
 					 .CLKIN1_PERIOD(6.153),
 					 .CLKIN2_PERIOD(6.153),
-					 .CLKOUT0_DIVIDE_F(4.875),		// clk200			200 MHz
-					 .CLKOUT1_DIVIDE(12),			// sysclk_div2_ps	81.25 MHz
-					 .CLKOUT2_DIVIDE(3),				// dataclk			325 MHz
-					 .CLKOUT2_PHASE(90),				// dataclk			t += ~750 ps
-					 .CLKOUT3_DIVIDE(6),				// dataclk_div2	162.5 MHz
-					 .CLKOUT3_PHASE(45),				// dataclk_div2	t += ~750 ps
-					 .CLKOUT4_DIVIDE(3),				// sysclkx2			325 MHz
+					 .CLKOUT0_DIVIDE_F(4.875),						// clk200			200 MHz
+					 .CLKOUT1_DIVIDE(12),							// sysclk_div2_ps	81.25 MHz
+					 .CLKOUT2_DIVIDE(3),								// dataclk			325 MHz
+					 .CLKOUT2_PHASE(DATACLK_PHASE),				// dataclk			(see top)
+					 .CLKOUT3_DIVIDE(6),								// dataclk_div2	162.5 MHz
+					 .CLKOUT3_PHASE(DATACLK_DIV2_PHASE),		// dataclk_div2	(see top)
+					 .CLKOUT4_DIVIDE(3),								// sysclkx2			325 MHz
 					 .CLKOUT4_PHASE(0),
+					 .CLKOUT5_DIVIDE(3),								// giclk				325 MHz
+					 .CLKOUT5_PHASE(GICLK_PHASE),					// giclk				(see top)
+					 .CLKOUT6_DIVIDE(6),								// giclk_div2		162.5 MHz
+					 .CLKOUT6_PHASE(GICLK_DIV2_PHASE),			// giclk_div2		(see top)
 					 .CLKOUT1_USE_FINE_PS("TRUE")) u_sysclk_mmcm(.CLKIN1(sysclk_in_bufg),
 																 .CLKIN2(sysclk_mult),
 																 .CLKINSEL(sysclk_mult_sel),
@@ -92,7 +113,8 @@ module GLITC_clock_generator(
 																 .CLKOUT2(dataclk_to_bufg),
 																 .CLKOUT3(dataclk_div2_to_bufg),
 																 .CLKOUT4(sysclkx2_to_bufg),
-																 
+																 .CLKOUT5(giclk_to_bufg),
+																 .CLKOUT6(giclk_div2_to_bufg),
 																 .RST(mmcm_reset),
 																 .LOCKED(sysclk_mmcm_locked),
 																 
@@ -106,7 +128,8 @@ module GLITC_clock_generator(
 	BUFG u_dataclk_div2_bufg(.I(dataclk_div2_to_bufg),.O(dataclk_div2_bufg));
 	BUFG u_sysclkx2_bufg(.I(sysclkx2_to_bufg),.O(sysclkx2_bufg));
 	BUFG u_sysclk_bufg(.I(sysclk_to_bufg),.O(sysclk_bufg));
-	
+	BUFG u_giclk_bufg(.I(giclk_to_bufg),.O(giclk_bufg));
+	BUFG u_giclk_div2_bufg(.I(giclk_div2_to_bufg),.O(giclk_div2_bufg));
 	assign status_o[0] = sysclk_mmcm_locked;
 	assign status_o[1] = sysclk_mult_mmcm_locked;
 	assign ps_clock = clk_i;
@@ -121,5 +144,6 @@ module GLITC_clock_generator(
 	assign DATACLK = dataclk_bufg;
 	assign DATACLK_DIV2 = dataclk_div2_bufg;
 	assign SYSCLKX2 = sysclkx2_bufg;
-
+	assign GICLK = giclk_bufg;
+	assign GICLK_DIV2 = giclk_div2_bufg;
 endmodule

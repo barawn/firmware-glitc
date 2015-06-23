@@ -273,10 +273,16 @@ module glitc_intercom_v2(
 	
 	//% Indicates that training should be on for the selected path.
 	reg send_train = 0;
+	//% Indicates that training is active for selected path, and all commands should be ignored.
+	reg training = 0;
 	//% Selects which path to turn training on.
 	reg train_sel = 0;
 	//% Activates latching sequence.
 	reg train_latch_enable = 0;
+	//% Synchronize training
+	reg [1:0] training_SYSCLK = {2{1'b0}};
+	//% Path-specific version of 'training' in SYSCLK domain.
+	reg [1:0] path_is_training_SYSCLK = {2{1'b0}};
 	//% Registered versions of send_train in SYSCLK domain.
 	reg [1:0] train_SYSCLK = 2'b00;
 	//% Registered versions of path select in SYSCLK domain.
@@ -325,8 +331,8 @@ module glitc_intercom_v2(
 	wire [1:0] command_in_seen;
 	wire [5:0] command_in[1:0];
 	
-	assign command_in_seen[UP] = phi_up_in_SYSCLK[10] && phi_up_in_SYSCLK[9] && phi_up_in_SYSCLK[8];
-	assign command_in_seen[DOWN] = phi_down_in_SYSCLK[10] && phi_down_in_SYSCLK[9] && phi_down_in_SYSCLK[8];
+	assign command_in_seen[UP] = (phi_up_in_SYSCLK[10] && phi_up_in_SYSCLK[9] && phi_up_in_SYSCLK[8]) && !path_is_training_SYSCLK[UP];
+	assign command_in_seen[DOWN] = phi_down_in_SYSCLK[10] && phi_down_in_SYSCLK[9] && phi_down_in_SYSCLK[8] && !path_is_training_SYSCLK[DOWN];
 	assign command_in[UP] = phi_up_in_SYSCLK[15:11];
 	assign command_in[DOWN] = phi_down_in_SYSCLK[15:11];
 

@@ -42,26 +42,28 @@ module glitc_top_v2(
 		    input F_CLK_N,
 		    input [11:0] F_P,
 		    input [11:0] F_N,		    
-/*		    
+
+/* We don't use the capture clocks.
 		    output PHI_DOWN_OUT_CLK_P,
 		    output PHI_DOWN_OUT_CLK_N,
-		    output [3:0] PHI_DOWN_OUT_P,
-		    output [3:0] PHI_DOWN_OUT_N,
 		    output PHI_UP_OUT_CLK_P,
 		    output PHI_UP_OUT_CLK_N,
+		    input PHI_DOWN_IN_CLK_P,
+		    input PHI_DOWN_IN_CLK_N,
+		    input PHI_UP_IN_CLK_P,
+		    input PHI_UP_IN_CLK_N,
+*/
+		    output [3:0] PHI_DOWN_OUT_P,
+		    output [3:0] PHI_DOWN_OUT_N,
 		    output [3:0] PHI_UP_OUT_P,
 		    output [3:0] PHI_UP_OUT_N,
 
-		    input PHI_DOWN_IN_CLK_P,
-		    input PHI_DOWN_IN_CLK_N,
 		    input [3:0] PHI_DOWN_IN_P,
 		    input [3:0] PHI_DOWN_IN_N,
-		    input PHI_UP_IN_CLK_P,
-		    input PHI_UP_IN_CLK_N,
 		    input [3:0] PHI_UP_IN_P,
 		    input [3:0] PHI_UP_IN_N,
 
-*/		    output [1:0] VCDL,
+		    output [1:0] VCDL,
 		    output [1:0] TRAIN,
 
 		    output [1:0] DAC_DIN,
@@ -80,11 +82,11 @@ module glitc_top_v2(
 		    );
 
 	localparam [3:0] VER_BOARDREV = 0;
-	localparam [3:0] VER_MONTH = 5;
-	localparam [7:0] VER_DAY = 6;
+	localparam [3:0] VER_MONTH = 6;
+	localparam [7:0] VER_DAY = 19;
 	localparam [3:0] VER_MAJOR = 0;
-	localparam [3:0] VER_MINOR = 1;
-	localparam [7:0] VER_REV = 20;
+	localparam [3:0] VER_MINOR = 2;
+	localparam [7:0] VER_REV = 2;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -103,6 +105,12 @@ module glitc_top_v2(
 	wire 			SYSCLKX2;
 	// Sync. Indicates which phase of VCDL we're on.
 	wire			SYNC;
+	// Max power output from RITC0.
+	wire [10:0] R0_MAX;
+	// Max power output from RITC1.
+	wire [10:0] R1_MAX;
+
+
 	
    // GLITCBUS local side interface.
    wire [15:0] 			gb_address;
@@ -117,10 +125,6 @@ module glitc_top_v2(
 	wire [70:0] ps_debug;
 	wire [70:0] i2c_debug;
 	wire [70:0] dac_debug;
-
-	// Simple SYNC implementation. Will add logic
-	// to handle sync inputs.
-	reg glitc_sync = 0;
 
 	// Output data and selects.
 	// Largest output store occurs at the data readout, which
@@ -145,7 +149,7 @@ module glitc_top_v2(
 	wire sel_i2c_data = sel_registers && (gb_address[7:4] == 4'h05);
 	wire [31:0] i2c_data;
 	wire sel_glitccomm_data = sel_registers && (gb_address[7:4] == 4'h06);
-	wire [31:0] glitccomm_data = {32{1'b0}};
+	wire [31:0] glitccomm_data;
 	wire sel_trigger = sel_registers && (gb_address[7:4] == 4'h07);
 	wire [31:0] trigger_data = {32{1'b0}};
 
@@ -316,10 +320,7 @@ module glitc_top_v2(
 															 .servo_update_o(servo_update),
 															 .debug_o(ps_debug));
 															 
-	// Pointless single correlation. Put this here so it does *something*... anything.														 
 	wire [31:0] debug_ritc;
-	wire [11:0] R0_MAX;
-	wire [11:0] R1_MAX;
 	dual_RITC_correlator_v1 u_correlator(.sysclk_i(SYSCLK),.sync_i(SYNC),
 													 .A(R0_DATA[0]),.B(R0_DATA[1]),.C(R0_DATA[2]),
 													 .D(R1_DATA[0]),.E(R1_DATA[1]),.F(R1_DATA[2]),
@@ -335,6 +336,37 @@ module glitc_top_v2(
 													 .sample_sel_i(sel_sample),
 													 .sample_dat_o(sample_storage_data),
 													 .debug_o(debug_ritc));
+	wire [31:0] debug_glitccomm;
+	glitc_intercom_v2 u_intercom(.user_clk_i(gb_clk),
+										  .user_sel_i(sel_glitccomm_data),
+										  .user_dat_i(gb_data_from_tisc),
+										  .user_wr_i(gb_wr),
+										  .user_addr_i(gb_address[3:0]),
+										  .user_dat_o(glitccomm_data),
+										  .sysclk_i(SYSCLK),
+										  .sysclkx2_i(SYSCLKX2),
+										  .dataclk_i(DATACLK),
+										  .dataclk_div2_i(DATACLK_DIV2),
+										  .r0_power_i(R0_MAX),
+										  .r0_corr_i(5'h00),
+										  .r1_power_i(R1_MAX),
+										  .r1_corr_i(5'h00),
+										  .phi_down_power_o(),
+										  .phi_down_corr_o(),
+										  .phi_down_valid_o(),
+										  .phi_up_power_o(),
+										  .phi_up_corr_o(),
+										  .phi_up_valid_o(),
+										  .sync_o(SYNC),
+										  .PHI_DOWN_OUT_P(PHI_DOWN_OUT_P),
+										  .PHI_DOWN_OUT_N(PHI_DOWN_OUT_N),
+										  .PHI_DOWN_IN_P(PHI_DOWN_IN_P),
+										  .PHI_DOWN_IN_N(PHI_DOWN_IN_N),
+										  .PHI_UP_OUT_P(PHI_UP_OUT_P),
+										  .PHI_UP_OUT_N(PHI_UP_OUT_N),
+										  .PHI_UP_IN_P(PHI_UP_IN_P),
+										  .PHI_UP_IN_N(PHI_UP_IN_N),
+										  .debug_o(debug_glitccomm));
 
 	GLITC_clock_generator u_clock_generator(.GA_SYSCLK_P(GA_SYSCLK_P),
 														 .GA_SYSCLK_N(GA_SYSCLK_N),
@@ -349,8 +381,6 @@ module glitc_top_v2(
 														 .SYSCLK_DIV2_PS(SYSCLK_DIV2_PS),
 														 .DATACLK(DATACLK),
 														 .DATACLK_DIV2(DATACLK_DIV2));
-	always @(posedge SYSCLK) glitc_sync <= ~glitc_sync;
-	assign SYNC = glitc_sync;
 
 	// We'll split up the firmware as such:
    // All RITC datapath, GLITC logic, etc. goes in the
@@ -399,8 +429,7 @@ module glitc_top_v2(
 	wire [1:0] debug_mux = vio_to_glitc[1:0];
 	
 	assign ila1_debug[31:0] = debug_ritc;
-	assign ila1_debug[32 +: 16] = datapath_debug;
-	
+	assign ila1_debug[32+:32] = debug_glitccomm;
 	// Only gb_clk-side modules have a muxable debug.
 	// sysclk is too fast.
 	glitc_debug_mux u_debug_mux(.clk_i(gb_clk),
