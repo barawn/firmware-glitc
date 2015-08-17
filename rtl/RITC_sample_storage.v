@@ -12,17 +12,18 @@ module RITC_sample_storage(
 		input user_clk_i,
 		input trig_i,
 		input clear_i,
-		input [10:0] user_addr_i,
+		input [12:0] user_addr_i,
 		input user_sel_i,
 		input user_rd_i,
 		input user_wr_i,
 		output [31:0] user_dat_o,
 		output sync_latch_o,
-		output done_o
+		output done_o,
+		output [63:0] debug_o
     );
 
 	wire [31:0] user_block_data[7:0];
-	assign user_dat_o = user_block_data[user_addr_i[10:8]];
+	assign user_dat_o = user_block_data[user_addr_i[12:10]];
 	
 	reg [8:0] write_addr = {9{1'b0}};
 	wire [9:0] write_addr_plus_one = write_addr + 1;
@@ -45,6 +46,11 @@ module RITC_sample_storage(
 	reg [1:0] addr0_sync_user_clk = {2{1'b0}};
 	wire trig_flag_sysclk;
 	wire clear_flag_sysclk;
+	reg trig_flag_sysclk_delayed=0;
+	
+	always @(posedge sysclk_i) begin
+		trig_flag_sysclk_delayed <= trig_flag_sysclk;
+	end
 	
 	flag_sync u_trig_sync(.in_clkA(trig_i),.clkA(user_clk_i),
 								 .out_clkB(trig_flag_sysclk),.clkB(sysclk_i));
@@ -53,7 +59,7 @@ module RITC_sample_storage(
 
 	
 	always @(posedge sysclk_i) begin
-		if (trig_flag_sysclk) write_enable <= 1;
+		if ((trig_flag_sysclk || trig_flag_sysclk_delayed) && !sync_i) write_enable <= 1;
 		else if (write_addr_plus_one[9]) write_enable <= 0;
 		
 		if (write_enable) write_addr <= write_addr_plus_one;
@@ -139,15 +145,26 @@ module RITC_sample_storage(
 	
 											
 	// Pull off the bottom 24 bits that contain 8 3-bit samples										
-	assign user_block_data[0] = A_output[read_addr[0]][24:0];
-	assign user_block_data[1] = B_output[read_addr[0]][24:0];
-	assign user_block_data[2] = C_output[read_addr[0]][24:0];
-	assign user_block_data[3] = D_output[read_addr[0]][24:0];
-	assign user_block_data[4] = E_output[read_addr[0]][24:0];
-	assign user_block_data[5] = F_output[read_addr[0]][24:0];
-	assign user_block_data[6] = C_output[read_addr[0]][24:0];
-	assign user_block_data[7] = D_output[read_addr[0]][24:0];
+	assign user_block_data[0][23:0] = A_output[read_addr[0]][23:0];
+	assign user_block_data[1][23:0] = B_output[read_addr[0]][23:0];
+	assign user_block_data[2][23:0] = C_output[read_addr[0]][23:0];
+	assign user_block_data[3][23:0] = D_output[read_addr[0]][23:0];
+	assign user_block_data[4][23:0] = E_output[read_addr[0]][23:0];
+	assign user_block_data[5][23:0] = F_output[read_addr[0]][23:0];
+	assign user_block_data[6][23:0] = C_output[read_addr[0]][23:0];
+	assign user_block_data[7][23:0] = D_output[read_addr[0]][23:0];
 
 	assign done_o = write_done_user_clk[1];
 	assign sync_latch_o = addr0_sync_user_clk[1];
+	
+	
+	// Debug
+	assign debug_o[0] = trig_i;
+	assign debug_o[1] = clear_i;
+	assign debug_o[14:2] = user_addr_i;
+	assign debug_o[15] = write_enable;
+	assign debug_o[16] = read_enable;
+	assign debug_o[25:17] = write_addr;
+	assign debug_o[35:26] = read_addr;
+	assign debug_o[50:36] = user_dat_o[23:0];
 endmodule

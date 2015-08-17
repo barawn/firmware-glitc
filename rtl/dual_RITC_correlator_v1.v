@@ -26,13 +26,13 @@ module dual_RITC_correlator_v1(
 		input user_sel_i,
 		input user_wr_i,
 		input user_rd_i,
-		input [10:0] user_addr_i,
+		input [12:0] user_addr_i,
 		input [31:0] user_dat_i,
 		output [31:0] user_dat_o,
 		input sample_sel_i,
 		output [31:0] sample_dat_o,
 		
-		output[31:0] debug_o
+		output[63:0] debug_o
     );
 
 	localparam NCORRBITS = 10;
@@ -133,7 +133,7 @@ module dual_RITC_correlator_v1(
 	RITC_compare_tree #(.NUM_CORR(NCORR),.NUM_BITS(NCORRBITS)) u_compare_R1(.clk_i(sysclk_i),
 																					 .corr_i(CORR_R1_CONCAT),
 																					 .max_o(max_R1));
-	assign debug_o = {max_R1, max_R0};
+	//assign debug_o = {max_R1, max_R0};
 	assign R0_MAX = max_R0;
 	assign R1_MAX = max_R1;
 	// Moron buffer storage. There's no pretrigger anything here: nothing smart, nothing intelligent, nothing.
@@ -166,6 +166,8 @@ module dual_RITC_correlator_v1(
 	
 	assign user_dat_o = STORCTRL;
 	
+	wire [63:0] storage_debug_o;
+	
 	RITC_sample_storage u_storage(.A(A),.B(B),.C(C),.D(D),.E(E),.F(F),.sysclk_i(sysclk_i),.sync_i(sync_i),
 											.trig_i(storage_trigger),
 											.clear_i(storage_clear),
@@ -176,6 +178,8 @@ module dual_RITC_correlator_v1(
 											.user_sel_i(sample_sel_i),
 											.user_rd_i(user_rd_i),
 											.user_wr_i(user_wr_i),
-											.user_dat_o(sample_dat_o));
+											.user_dat_o(sample_dat_o),
+											.debug_o(storage_debug_o));
+	assign debug_o = storage_debug_o;
 	
 endmodule

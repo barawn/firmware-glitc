@@ -130,12 +130,12 @@ module glitc_top_v2(
 	// Largest output store occurs at the data readout, which
 	// is 96 bits x 512 samples, which is 32 bits x 1536 addresses, requiring 2048
 	// entries of address space. Therefore:
-	// 0x000 - 0x7FF : Register space
-	// 0x800 - 0xFFF : Sample storage
-	// and bit [11] is used to select.
+	// 0x0000 - 0x1FFF : Register space
+	// 0x2000 - 0x3FFF : Sample storage
+	// and bit [13] is used to select.
 	
-	wire sel_registers = !gb_address[11];
-	wire sel_sample = gb_address[11];
+	wire sel_registers = !gb_address[13];
+	wire sel_sample = gb_address[13];
 	wire sel_ctrl = sel_registers && (gb_address[7:4] == 4'h00);
 	wire [31:0] ctrl_data;
 	wire sel_ps = sel_registers && (gb_address[7:4] == 4'h01);
@@ -320,7 +320,7 @@ module glitc_top_v2(
 															 .servo_update_o(servo_update),
 															 .debug_o(ps_debug));
 															 
-	wire [31:0] debug_ritc;
+	wire [63:0] debug_ritc;
 	dual_RITC_correlator_v1 u_correlator(.sysclk_i(SYSCLK),.sync_i(SYNC),
 													 .A(R0_DATA[0]),.B(R0_DATA[1]),.C(R0_DATA[2]),
 													 .D(R1_DATA[0]),.E(R1_DATA[1]),.F(R1_DATA[2]),
@@ -330,7 +330,7 @@ module glitc_top_v2(
 													 .user_sel_i(sel_ritc),
 													 .user_wr_i(gb_wr),
 													 .user_rd_i(gb_rd),
-													 .user_addr_i(gb_address[10:0]),
+													 .user_addr_i(gb_address[12:0]),
 													 .user_dat_i(gb_data_from_tisc),
 													 .user_dat_o(ritc_data),
 													 .sample_sel_i(sel_sample),
@@ -428,8 +428,9 @@ module glitc_top_v2(
 	wire [7:0] vio_to_glitc;
 	wire [1:0] debug_mux = vio_to_glitc[1:0];
 	
-	assign ila1_debug[31:0] = debug_ritc;
-	assign ila1_debug[32+:32] = debug_glitccomm;
+	//assign ila1_debug[31:0] = debug_ritc;
+	//assign ila1_debug[32+:32] = debug_glitccomm;
+	assign ila1_debug[63:0] = debug_ritc;
 	// Only gb_clk-side modules have a muxable debug.
 	// sysclk is too fast.
 	glitc_debug_mux u_debug_mux(.clk_i(gb_clk),
