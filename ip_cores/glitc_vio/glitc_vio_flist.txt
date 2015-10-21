@@ -1,0 +1,18 @@
+# Output products list for <glitc_vio>
+_xmsgs\pn_parser.xmsgs
+glitc_vio.asy
+glitc_vio.cdc
+glitc_vio.constraints\glitc_vio.ucf
+glitc_vio.constraints\glitc_vio.xdc
+glitc_vio.gise
+glitc_vio.ngc
+glitc_vio.sym
+glitc_vio.ucf
+glitc_vio.v
+glitc_vio.veo
+glitc_vio.xco
+glitc_vio.xdc
+glitc_vio.xise
+glitc_vio_flist.txt
+glitc_vio_readme.txt
+glitc_vio_xmdf.tcl

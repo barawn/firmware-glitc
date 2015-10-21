@@ -1,0 +1,216 @@
+; Command register (low/high byte)
+CONSTANT	command_0,		00
+CONSTANT	command_1,		01
+; Scan status register.
+; See 'scan_status_' bits below.
+CONSTANT	scan_status,		04
+; Scan storage register.
+; See 'scan_store_' bits below.
+CONSTANT	scan_store,		05
+
+CONSTANT	arg_0,			08
+CONSTANT	arg_1,			09
+
+CONSTANT	res_0,			0C
+CONSTANT	res_1,			0D
+
+CONSTANT	servo_0,		10
+CONSTANT	servo_1,		11
+CONSTANT	servo_2,		12
+CONSTANT	servo_3,		13
+
+; VDD output
+CONSTANT	vdd_0,			1C
+CONSTANT	vdd_1,			1D
+
+; Debug output
+CONSTANT	debug_0,		14
+CONSTANT	debug_1,		15
+CONSTANT	debug_2,		16
+CONSTANT	debug_3,		17
+
+; Scan control
+CONSTANT	servoctl_0,		18
+CONSTANT	servoctl_1,		19
+CONSTANT	servoctl_2,		1A
+CONSTANT	servoctl_3,		1B
+
+; Scalers. These are overlayed on top of VDD and debug, both of which are outputs.
+CONSTANT	bit_scaler_R0, 	      	14
+CONSTANT	clk_scaler_R0,		15
+CONSTANT	vcdl_scaler_R0,		16
+CONSTANT	bit_scaler_R1,		1C
+CONSTANT	clk_scaler_R1,		1D
+CONSTANT	vcdl_scaler_R1,		1E
+
+CONSTANT	scan_status_EN,		01
+CONSTANT	scan_status_INCDEC,	02
+CONSTANT	scan_status_PSDONE,	04
+CONSTANT	scan_status_SCAN_DONE,	08
+
+CONSTANT	scan_store_CLOCK_0,	01
+CONSTANT	scan_store_SIGNAL_0,	02
+CONSTANT	scan_store_VCDL_0,	04
+CONSTANT	scan_store_CLOCK_1,	10
+CONSTANT	scan_store_SIGNAL_1,	20
+CONSTANT	scan_store_VCDL_1,	40
+
+;
+; These are the basic 'debugging' commands.
+;
+
+; Idle: do nothing
+CONSTANT	command_IDLE,		00
+; Free scan: Continuous scanning.
+CONSTANT	command_FREE_SCAN,	01
+; Get scan: Return the scan result in res_0/res_1.
+CONSTANT	command_GET_SCAN,	02
+; Go to step: Go to the scan step indicated in arg_0/arg_1 (low/high).
+;             Return the OLD step is res_0/res_1.
+;             Note that if the specified step is out of bounds
+;             (not 0-671) the result is still passed.
+CONSTANT    	command_GO_TO_STEP,	03
+; Reset step: Forcably set the internal 'cur_step' to 0.
+;             This is needed when the MMCM is externally
+;             reset, which causes the phase shift to revert
+;             back to 0.
+CONSTANT        command_RESET_STEP,	04
+; Free scaler scan. Continuous scaler scan.
+CONSTANT      	command_FREE_SCALER_SCAN,	05
+;
+; These are the 'servo initialization' commands.
+;
+; Next edge. Finds the next edge after the current step.
+; do something.
+CONSTANT	command_NEXT_EDGE,	08
+
+;
+; This is the 'run servo' command.
+;
+
+; Fine phase shift steps in 1/56th of the VCO.
+; VCO runs at 12 times phase-shift clock period.
+; Total scan length is therefore 56*12=672.
+CONSTANT	scan_step_limit_L,	9F
+CONSTANT	scan_step_limit_H,	02
+CONSTANT	scan_step_max_L,	A0
+CONSTANT	scan_step_max_H,	02
+
+NAMEREG		s8,			cur_step_L
+NAMEREG		s9,			cur_step_H
+NAMEREG		sA,			scan_step_L
+NAMEREG		sB,			scan_step_H
+
+reset:		
+		load		cur_step_L,	00
+		load		cur_step_H,	00
+		load		scan_step_L,	00
+		load		scan_step_H,	00
+
+main_loop:
+		input		s0, command_0
+		compare		s0, command_IDLE
+		jump		Z,  main_loop
+		compare		s0, command_FREE_SCAN
+		jump		Z,  free_scan
+		compare		s0, command_GET_SCAN
+		jump		Z,  get_scan
+		compare		s0, command_GO_TO_STEP
+		jump		Z,  go_to_step
+		compare		s0, command_RESET_STEP
+		jump		Z,  reset_step
+		compare		s0, command_FREE_SCALER_SCAN
+		; unknown command, reset to idle
+		load	  	s0, command_IDLE
+		output		s0, command_0
+		jump		main_loop
+
+phase_increment:
+		load		s0, 03
+		output		s0, scan_status
+phase_increment_jp0:
+		input		s0, scan_status
+		test		s0, 04
+		jump		Z, phase_increment_jp0
+		return
+
+phase_decrement:
+		load		s0, 01
+		output		s0, scan_status
+phase_decrement_jp0:
+		input		s0, scan_status
+		test		s0, 04
+		jump		Z, phase_decrement_jp0
+		return
+
+; Free scan. Just does a phase increment watching
+; for PS_DONE, and then continues incrementing.
+free_scan:
+		load		scan_step_L, cur_step_L
+		load		scan_step_H, cur_step_H
+free_scan_lp0:	add		scan_step_L, 01
+		addcy		scan_step_H, 00
+		compare		scan_step_L, scan_step_max_L
+		comparecy	scan_step_H, scan_step_max_H
+		jump		NZ, free_scan_jp0
+		load		scan_step_L, 00
+		load		scan_step_H, 00
+free_scan_jp0:	call		phase_increment
+		output		scan_step_L, debug_0
+		output		scan_step_H, debug_1
+		compare		scan_step_L, cur_step_L
+		comparecy	scan_step_H, cur_step_H
+		jump		NZ, free_scan_lp0
+		load		s0, 08
+		output		s0, scan_status
+		jump		main_loop
+
+;
+; Free scaler scan. Does a scan, waiting for the scaler
+; to complete. The scaler takes around 128 clock cycles at
+; 162.5 MHz, which is probably around ~15-20 clocks at 16 MHz
+; adding in clock cross overhead. So free scanning is a tiny
+; bit faster. That being said, this is a pointless difference
+; given the large overhead after each scan step.
+free_scaler_scan:
+		load		scan_step_L, cur_step_L
+		load		scan_step_H, cur_step_H
+free_sclr_lp0:	add		scan_step_L, 01
+		addcy		scan_step_H, 00
+		compare		scan_step_L, scan_step_max_L
+		comparecy	scan_step_H, scan_step_max_H
+		jump		NZ, free_sclr_jp0
+		load		scan_step_L, 00
+		load		scan_step_H, 00
+free_sclr_jp0:	call		phase_increment
+free_sclr_jp1:	input		s0, scan_status
+		test		s0, 80
+		jump		Z, free_sclr_jp1
+		test		s0, 40
+		jump		Z, free_sclr_jp1		
+		output		scan_step_L, debug_0
+		output		scan_step_H, debug_1
+		compare		scan_step_L, cur_step_L
+		comparecy	scan_step_H, cur_step_H
+		jump		NZ, free_sclr_lp0
+		load		s0, 08
+		output		s0, scan_status
+		jump		main_loop
+
+
+get_scan:
+		load		s0, 00
+		output		s0, command_0
+		jump		main_loop
+
+go_to_step:
+		load		s0, 00
+		output		s0, command_0
+		jump		main_loop
+
+reset_step:
+		load		cur_step_L, 00
+		load		cur_step_H, 00
+		output		cur_step_L, command_0
+		jump		main_loop
+		

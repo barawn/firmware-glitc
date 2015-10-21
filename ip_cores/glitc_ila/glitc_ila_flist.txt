@@ -1,0 +1,19 @@
+# Output products list for <glitc_ila>
+_xmsgs\pn_parser.xmsgs
+glitc_ila.asy
+glitc_ila.cdc
+glitc_ila.constraints\glitc_ila.ucf
+glitc_ila.constraints\glitc_ila.xdc
+glitc_ila.gise
+glitc_ila.ncf
+glitc_ila.ngc
+glitc_ila.sym
+glitc_ila.ucf
+glitc_ila.v
+glitc_ila.veo
+glitc_ila.xco
+glitc_ila.xdc
+glitc_ila.xise
+glitc_ila_flist.txt
+glitc_ila_readme.txt
+glitc_ila_xmdf.tcl

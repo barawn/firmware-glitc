@@ -1,12 +1,4 @@
 Firmware for the GLITC FPGA on the TISCs in the ANITA-3 design.
 
-NOTE:
-
-Due to a bug in Place where it mistakenly believes that the LVDS pairs
-are backwards, it is necessary to set XIL_PAR_ALLOW_LVDS_LOC_OVERRIDE to 1
-in order to compile the firmware at this point.
-
-This can either be done as an environment variable before launching ISE,
-or it can also be done inside ISE at the Tcl Console with the command
-
-set env(XIL_PAR_ALLOW_LVDS_LOC_OVERRIDE) 1
+This firmware now uses Vivado, which means you need to sadly set things up
+a bit more.

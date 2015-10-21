@@ -1,0 +1,17 @@
+# Output products list for <glitc_icon>
+_xmsgs\pn_parser.xmsgs
+glitc_icon.asy
+glitc_icon.constraints\glitc_icon.ucf
+glitc_icon.constraints\glitc_icon.xdc
+glitc_icon.gise
+glitc_icon.ngc
+glitc_icon.sym
+glitc_icon.ucf
+glitc_icon.v
+glitc_icon.veo
+glitc_icon.xco
+glitc_icon.xdc
+glitc_icon.xise
+glitc_icon_flist.txt
+glitc_icon_readme.txt
+glitc_icon_xmdf.tcl
