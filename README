@@ -1,4 +1,10 @@
 Firmware for the GLITC FPGA on the TISCs in the ANITA-3 design.
 
 This firmware now uses Vivado, which means you need to sadly set things up
-a bit more.
+a bit more. After checking out the project, you need to run
+
+build-project.bat
+
+under Windows to actually create the project.
+
+Might be able to automate this eventually, but right now, sadly no can do.

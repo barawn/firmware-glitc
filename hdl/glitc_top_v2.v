@@ -74,10 +74,10 @@ module glitc_top_v2(
 
 	localparam [3:0] VER_BOARDREV = 0;
 	localparam [3:0] VER_MONTH = 10;
-	localparam [7:0] VER_DAY = 20;
+	localparam [7:0] VER_DAY = 22;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 4;
-	localparam [7:0] VER_REV = 15;
+	localparam [7:0] VER_REV = 16;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
