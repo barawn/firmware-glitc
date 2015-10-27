@@ -38,11 +38,15 @@ module glitc_intercom_oserdes_v2(
                 (* DONT_TOUCH = "TRUE" *)
                 (* EQUIVALENT_REGISTER_REMOVAL = "FALSE" *)
                 reg oserdes_clock_enable = 0;
+                (* DONT_TOUCH = "TRUE" *)
+                (* EQUIVALENT_REGISTER_REMOVAL = "FALSE" *)
+                reg oserdes_clock_enable_x2 = 0;
                 always @(posedge sysclk_i) oserdes_clock_enable <= en_i;                    
+                always @(posedge sysclkx2_i) oserdes_clock_enable_x2 <= oserdes_clock_enable;
                 OSERDESE2 #(.DATA_RATE_OQ("DDR"),.DATA_WIDTH(4),.SRVAL_OQ(1'b1)) u_oserdes(.CLK(sysclkx2_i),
                                                                                                   .CLKDIV(sysclk_i),
                                                                                                   .RST(rst_i),
-                                                                                                  .OCE(oserdes_clock_enable),
+                                                                                                  .OCE(oserdes_clock_enable_x2),
                                                                                                   .D1(oserdes_data[4*i+3]),
                                                                                                   .D2(oserdes_data[4*i+2]),
                                                                                                   .D3(oserdes_data[4*i+1]),
@@ -54,11 +58,15 @@ module glitc_intercom_oserdes_v2(
                 (* DONT_TOUCH = "TRUE" *)
                 (* EQUIVALENT_REGISTER_REMOVAL = "FALSE" *)
                 reg oserdes_clock_enable = 0;
+                (* DONT_TOUCH = "TRUE" *)
+                (* EQUIVALENT_REGISTER_REMOVAL = "FALSE" *)
+                reg oserdes_clock_enable_x2 = 0;
                 always @(posedge sysclk_i) oserdes_clock_enable <= en_i;                    
+                always @(posedge sysclkx2_i) oserdes_clock_enable_x2 <= oserdes_clock_enable;
                 OSERDESE2 #(.DATA_RATE_OQ("DDR"),.DATA_WIDTH(4),.SRVAL_OQ(1'b1)) u_oserdes(.CLK(sysclkx2_i),
                                                                                                   .CLKDIV(sysclk_i),
                                                                                                   .RST(rst_i),
-                                                                                                  .OCE(oserdes_clock_enable),
+                                                                                                  .OCE(oserdes_clock_enable_x2),
                                                                                                   .D1(~oserdes_data[4*i+3]),
                                                                                                   .D2(~oserdes_data[4*i+2]),
                                                                                                   .D3(~oserdes_data[4*i+1]),

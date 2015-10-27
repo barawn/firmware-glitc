@@ -553,14 +553,10 @@ set_output_delay -clock [get_clocks GCLK] -min -add_delay 10.000 [get_ports {GAD
 set_output_delay -clock [get_clocks GCLK] -max -add_delay 20.000 [get_ports {GAD[*]}]
 create_clock -period 6.154 -name generated_sysclk -waveform {0.000 3.077} [get_nets u_clock_generator/sysclk_mult]
 
-set_clock_groups -name clock_counters -asynchronous -group [get_clocks {A_CLK_P B_CLK_P C_CLK_P D_CLK_P E_CLK_P F_CLK_P glitcbus_clk_to_BUFG}]
-set_clock_groups -name glitcbus_dataclk_div2 -asynchronous -group [get_clocks {glitcbus_clk_to_BUFG dataclk_div2_to_bufg}]
-set_clock_groups -name glitcbus_sysclk_div2_ps -asynchronous -group [get_clocks {sysclk_div2_ps_to_bufg glitcbus_clk_to_BUFG}]
-set_clock_groups -name glitcbus_sysclk -asynchronous -group [get_clocks {sysclk_to_bufg glitcbus_clk_to_BUFG}]
-set_clock_groups -name glitcbus_dataclk -asynchronous -group [get_clocks {dataclk_to_bufg glitcbus_clk_to_BUFG}]
-
-
-
+# Asynchronous clocks. These clocks have no relationship to anything in the design.
+set_clock_groups -name glitcbus_asynchronous -asynchronous -group [get_clocks {glitcbus_clk_to_BUFG}]
+set_clock_groups -name phasescan_asynchronous -asynchronous -group [get_clocks {sysclk_div2_ps_to_bufg}]
+set_clock_groups -name counters_asynchronous -asynchronous -group [get_clocks {A_CLK_P B_CLK_P C_CLK_P D_CLK_P E_CLK_P F_CLK_P}]
 
 set_property OFFCHIP_TERM NONE [get_ports DAC_CLK[0]]
 set_property OFFCHIP_TERM NONE [get_ports DAC_CLK[1]]
