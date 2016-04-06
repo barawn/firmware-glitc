@@ -21,6 +21,7 @@ module GLITC_control_registers(
 		output realign_o,
 		input realigned_i,
 		output [2:0] clk_control_o,
+		output hsk_update_o,
 		output reset_o
     );
 	parameter [31:0] IDENT = "GLTC";
@@ -41,7 +42,15 @@ module GLITC_control_registers(
 	reg realigned = 0;
 	wire dna_data;
 	
+	reg hsk_update = 0;
+	
 	always @(posedge user_clk_i) begin
+	    // Housekeeping updates need a 'write only' register, where we do not care about the data that exists.
+        // So we use the ident register.
+        if (user_sel_i && user_wr_i && (user_addr_i[1:0] == 2'b00)) hsk_update <= 1;
+        else hsk_update <= 0;
+
+	
         if (user_sel_i && user_wr_i && (user_addr_i[1:0]==2'b11)) read_reg <= user_dat_i[31];
         else read_reg <= 0;
         
@@ -70,4 +79,5 @@ module GLITC_control_registers(
 	assign clk_control_o = clk_control_reg;
 	assign user_dat_o = data_out[user_addr_i];
     assign realign_o = realign;
+    assign hsk_update_o = hsk_update;
 endmodule

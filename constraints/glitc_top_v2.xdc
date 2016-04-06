@@ -536,6 +536,13 @@ set_property PACKAGE_PIN L19 [get_ports GCLK]
 set_property PACKAGE_PIN AA19 [get_ports GRDWR_B]
 set_property PACKAGE_PIN V17 [get_ports GSEL_B]
 
+set_property PACKAGE_PIN B1 [get_ports {TOUT_P[0]}]
+set_property PACKAGE_PIN A1 [get_ports {TOUT_N[0]}]
+set_property PACKAGE_PIN C2 [get_ports {TOUT_P[1]}]
+set_property PACKAGE_PIN B2 [get_ports {TOUT_N[1]}]
+set_property IOSTANDARD LVDS_25 [get_ports {TOUT_P[0]}]
+set_property IOSTANDARD LVDS_25 [get_ports {TOUT_P[1]}]
+
 set_property PACKAGE_PIN G15 [get_ports ATT_D]
 set_property PACKAGE_PIN G16 [get_ports ATT_CLK]
 set_property PACKAGE_PIN G17 [get_ports ATT_LE]

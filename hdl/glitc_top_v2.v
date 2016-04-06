@@ -53,7 +53,10 @@ module glitc_top_v2(
 		    input [4:0] PHI_DOWN_IN_N,
 		    input [4:0] PHI_UP_IN_P,
 		    input [4:0] PHI_UP_IN_N,
-
+		    
+		    output [1:0] TOUT_P,
+            output [1:0] TOUT_N,
+            
 		    output [1:0] VCDL,
 		    output [1:0] TRAIN,
 
@@ -79,12 +82,12 @@ module glitc_top_v2(
 			 inout [4:0] MON
 		    );
 
-	localparam [3:0] VER_BOARDREV = 0;
-	localparam [3:0] VER_MONTH = 10;
-	localparam [7:0] VER_DAY = 27;
+	localparam [3:0] VER_BOARDREV = 1;
+	localparam [3:0] VER_MONTH = 4;
+	localparam [7:0] VER_DAY = 6;
 	localparam [3:0] VER_MAJOR = 0;
-	localparam [3:0] VER_MINOR = 4;
-	localparam [7:0] VER_REV = 17;
+	localparam [3:0] VER_MINOR = 6;
+	localparam [7:0] VER_REV = 0;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
 
    // GLITCBUS clock.
@@ -153,8 +156,8 @@ module glitc_top_v2(
 	wire sel_glitccomm_data = sel_registers && (gb_address[7:4] == 4'h06);
 	wire [31:0] glitccomm_data;
 	wire sel_trigger = sel_registers && (gb_address[7:4] == 4'h07);
-	wire [31:0] trigger_data = {32{1'b0}};
-
+	wire [31:0] trigger_data;
+	
 	wire [31:0] sample_storage_data;
 	
    glitcbus_slave_v2 u_slave(.gclk_i(gb_clk),
@@ -172,6 +175,7 @@ module glitc_top_v2(
 	wire glitc_reset;
 	wire mult_realign;
 	wire mult_realigned;
+	wire hsk_update;
 	GLITC_control_registers #(.VERSION(VERSION)) u_control(.user_clk_i(gb_clk),
 												 .user_addr_i(gb_address[1:0]),
 												 .user_dat_i(gb_data_from_tisc),
@@ -182,7 +186,8 @@ module glitc_top_v2(
 												 .clk_control_o(clock_ctrl),
 												 .realign_o(mult_realign),
 												 .realigned_i(mult_realigned),
-												 .reset_o(glitc_reset));
+												 .reset_o(glitc_reset),
+												 .hsk_update_o(hsk_update));
 	/////
 	// GLITC External Settings.
 	/////
@@ -390,6 +395,27 @@ module glitc_top_v2(
 										  .PHI_UP_IN_N(PHI_UP_IN_N),
 										  .debug_o(debug_glitccomm));
 
+    wire [1:0] trigger_out;
+    GLITC_trigger u_trigger(.clk_i(SYSCLK),
+                            .hsk_update_i(hsk_update),
+                            .upper_glitc_i(upper_glitc_power),
+                            .upper_glitc_corr_i(upper_glitc_corr),
+                            .upper_glitc_valid_i(upper_glitc_valid),
+                            .lower_glitc_i(lower_glitc_power),
+                            .lower_glitc_corr_i(lower_glitc_corr),
+                            .lower_glitc_valid_i(lower_glitc_valid),
+                            .upper_phi_i(R1_MAX),
+                            .upper_phi_corr_i(R1_MAX_CORR),
+                            .lower_phi_i(R0_MAX),
+                            .lower_phi_corr_i(R0_MAX_CORR),
+                            .trigger_o(trigger_out),
+                            .user_clk_i(user_clk_i),
+                            .user_sel_i(sel_trigger),
+                            .user_dat_i(gb_data_from_tisc),
+                            .user_dat_o(trigger_data),
+                            .user_wr_i(gb_wr),
+                            .user_addr_i(gb_address[3:0]));
+
 	GLITC_clock_generator u_clock_generator(.GA_SYSCLK_P(GA_SYSCLK_P),
 														 .GA_SYSCLK_N(GA_SYSCLK_N),
 														 .clk_i(gb_clk),
@@ -466,11 +492,13 @@ module glitc_top_v2(
 	glitc_ila u_ila0(.CONTROL(ila0_control),.CLK(gb_clk),.TRIG0(ila0_debug));
 	glitc_ila u_ila1(.CONTROL(ila1_control),.CLK(SYSCLK),.TRIG0(ila1_debug));
 	glitc_vio u_vio(.CONTROL(vio_control),.CLK(gb_clk),.SYNC_IN(glitc_to_vio),.SYNC_OUT(vio_to_glitc));
+
+    OBUFDS u_trigout0(.I(trigger_out[0]),.O(TOUT_P[0]),.OB(TOUT_N[0]));
+    OBUFDS u_trigout1(.I(trigger_out[1]),.O(TOUT_P[1]),.OB(TOUT_N[1]));
 	
 	ODDR u_clock_forward(.D1(1'b1),.D2(1'b0),.CE(1'b1),.S(1'b0),.R(1'b0),.C(SYSCLK),.Q(MON[4]));
 	assign MON[1] = DAC_CLK[1];
 	assign MON[2] = DAC_LATCH[0];
 	assign MON[3] = DAC_LATCH[1];
-	
-	
+		
 endmodule
