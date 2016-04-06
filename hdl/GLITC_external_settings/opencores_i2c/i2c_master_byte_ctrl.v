@@ -74,7 +74,7 @@
 
 module i2c_master_byte_ctrl (
 	clk, rst, nReset, ena, clk_cnt, start, stop, read, write, ack_in, din,
-	cmd_ack, ack_out, dout, i2c_busy, i2c_al, scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen, debug );
+	cmd_ack, ack_out, dout, i2c_busy, i2c_al, scl_i, scl_o, scl_oen, sda_i, sda_o, sda_oen, last_bit_o, debug );
 
 	//
 	// inputs & outputs
@@ -85,6 +85,7 @@ module i2c_master_byte_ctrl (
 	input ena;     // core enable signal
 
 	input [15:0] clk_cnt; // 4x SCL
+    output last_bit_o;
 	output [5:0] debug;
 	// control inputs
 	input       start;
@@ -102,7 +103,7 @@ module i2c_master_byte_ctrl (
 	output       i2c_busy;
 	output       i2c_al;
 	output [7:0] dout;
-
+    
 	// I2C signals
 	input  scl_i;
 	output scl_o;
@@ -343,5 +344,6 @@ module i2c_master_byte_ctrl (
 
 	      endcase
 	  end
+    assign last_bit_o = (c_state == ST_READ || c_state == ST_WRITE) && core_ack && cnt_done;
 	assign debug[4:0] = c_state;
 endmodule

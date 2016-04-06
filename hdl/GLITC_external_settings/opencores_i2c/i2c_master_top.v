@@ -81,7 +81,7 @@
 
 module i2c_master_top(
 	wb_clk_i, wb_rst_i, arst_i, wb_adr_i, wb_dat_i, wb_dat_o,
-	wb_we_i, wb_stb_i, wb_cyc_i, wb_ack_o, wb_rty_o, wb_err_o, wb_sel_i, wb_inta_o,
+	wb_we_i, wb_stb_i, wb_cyc_i, wb_ack_o, wb_rty_o, wb_err_o, wb_sel_i, wb_inta_o, last_bit_o,
 	scl_pad_i, scl_pad_o, scl_padoen_o, sda_pad_i, sda_pad_o, sda_padoen_o, debug_o );
 
 	// parameters
@@ -106,6 +106,7 @@ module i2c_master_top(
 	output       wb_inta_o;    // interrupt request signal output
    output 		 wb_rty_o;
 	output		 wb_err_o;
+	output       last_bit_o;
 	output [5:0] debug_o;
 	input [0:0]	 wb_sel_i;
 	wire [WB_LATENCY:0] wb_cycstb_pipe;
@@ -298,6 +299,7 @@ module i2c_master_top(
 		.sda_i    ( sda_pad_i    ),
 		.sda_o    ( sda_pad_o    ),
 		.sda_oen  ( sda_padoen_o ),
+		.last_bit_o(last_bit_o),
 		.debug	 ( debug_o )
 	);
 

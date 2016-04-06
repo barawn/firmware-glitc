@@ -29,6 +29,14 @@ module GLITC_external_settings(
 		
 		output [70:0] debug_o,
 		
+		output att_d_o,
+		output att_clk_o,
+		output att_le_o,
+		
+		output bias_en_o,
+		
+		output [1:0] ldac_o,
+		
 		input scl_i,
 		output scl_o,
 		output scl_oen_o,
@@ -121,14 +129,18 @@ module GLITC_external_settings(
 	reg			pb_pause_updates = 0;
 	//% Updates are pending.
 	reg			pb_updates_pending = 0;
-		
+	//% PicoBlaze thinks this is a TISCv2.
+	reg         pb_tiscv2 = 0;
+	
 	//% PicoBlaze status/control register.
 	wire [31:0] pb_status_control;
 	assign pb_status_control[7:0] = pb_error_message;
 	assign pb_status_control[8] = pb_error_pending;
 	assign pb_status_control[15:9] = {7{1'b0}};
 	assign pb_status_control[16] = pb_initialized;
-	assign pb_status_control[29:17] = {13{1'b0}};
+	assign pb_status_control[19:17] = {3{1'b0}};
+	assign pb_status_control[20] = pb_tiscv2;
+	assign pb_status_control[29:21] = {9{1'b0}};
 	assign pb_status_control[30] = pb_pause_updates;
 	assign pb_status_control[31] = pb_updates_pending;
 	
@@ -189,6 +201,23 @@ module GLITC_external_settings(
 	//% I2C WISHBONE data output.
 	wire [7:0] i2c_dat_o;
 	
+	//% Attenuator data line
+	reg att_d = 0;
+	//% Attenuator clock line
+	reg att_clk = 0;
+    //% Attenuator latch line
+    reg att_le = 0;
+	
+	//% Flag to do LDAC the next time we're in the last bit.
+	reg [1:0] do_ldac = {2{1'b0}};
+	//% Actual LDAC output.
+	reg [1:0] ldac = {2{1'b0}};
+	//% Last bit of the I2C sequence.
+	wire i2c_last_bit;
+	
+	//% Bias-tee enable.
+	reg bias_enable = 0;
+	
 	//% Holds PicoBlaze in reset.
 	reg processor_reset = 0;
 	//% Enables writes to BRAM.
@@ -220,25 +249,27 @@ module GLITC_external_settings(
 	wire pb_sel_att = (pb_port[5:4] == 2'b10) && (!pb_port[7]);
 	//% Control registers are selected.
 	wire pb_sel_ctl = (pb_port[5:4] == 2'b00) && (!pb_port[7]);
-
+    //% TISCv2 registers.
+    wire pb_sel_tv2 = (pb_port[5:4] == 2'b11) && (!pb_port[7]);
+    
 	//// DAC multiplexing.
 	wire [15:0] pb_dac_mux = user_data_out[pb_port[3:1]];
 	wire [7:0] pb_dac_mux_byte = (pb_port[0]) ? pb_dac_mux[15:8] : pb_dac_mux[7:0];
 	//// Attenuator multiplexing.
 	wire [5:0] pb_atten_settings[7:0];
 	//// Reverse the first 3 attenuator inputs into the PicoBlaze.
-	assign pb_atten_settings[0] = atten0_convert(atten_settings[0]); 
-	assign pb_atten_settings[1] = atten0_convert(atten_settings[1]); 
-	assign pb_atten_settings[2] = atten0_convert(atten_settings[2]); 
-	assign pb_atten_settings[3] = atten1_convert(atten_settings[3]);
-	assign pb_atten_settings[4] = atten1_convert(atten_settings[4]);
-	assign pb_atten_settings[5] = atten1_convert(atten_settings[5]);
+	assign pb_atten_settings[0] = (pb_tiscv2) ? atten_settings[0] : atten0_convert(atten_settings[0]); 
+	assign pb_atten_settings[1] = (pb_tiscv2) ? atten_settings[1] : atten0_convert(atten_settings[1]); 
+	assign pb_atten_settings[2] = (pb_tiscv2) ? atten_settings[2] : atten0_convert(atten_settings[2]); 
+	assign pb_atten_settings[3] = (pb_tiscv2) ? atten_settings[3] : atten1_convert(atten_settings[3]);
+	assign pb_atten_settings[4] = (pb_tiscv2) ? atten_settings[4] : atten1_convert(atten_settings[4]);
+	assign pb_atten_settings[5] = (pb_tiscv2) ? atten_settings[5] : atten1_convert(atten_settings[5]);
 	assign pb_atten_settings[6] = pb_atten_settings[2];
 	assign pb_atten_settings[7] = pb_atten_settings[3];
 	wire [7:0] pb_atten_mux_byte = {{2{1'b0}},pb_atten_settings[pb_port[2:0]]};
 	//// Control multiplexing.
 	wire [7:0] pb_ctl_bytes[3:0];
-	assign pb_ctl_bytes[0] = {{4{1'b0}},pb_pause_updates,pb_initialized,pb_error_pending,pb_updates_pending};
+	assign pb_ctl_bytes[0] = {{3{1'b0}},pb_tiscv2,pb_pause_updates,pb_initialized,pb_error_pending,pb_updates_pending};
 	assign pb_ctl_bytes[1] = dac_update_pending;
 	assign pb_ctl_bytes[2] = atten_update_pending;
 	assign pb_ctl_bytes[3] = dac_update_pending;
@@ -296,9 +327,31 @@ module GLITC_external_settings(
 			else if (pb_outport[7]) pb_error_pending <= 0;
 			if (pb_outport[2]) pb_initialized <= 1;
 			else if (pb_outport[7]) pb_initialized <= 0; 
+			if (pb_outport[4]) pb_tiscv2 <= 1;
+			else if (pb_outport[7]) pb_tiscv2 <= 0;
 		end else if (pb_write && pb_sel_ctl && pb_port[1:0] == 2'b11) begin
 			pb_error_message <= pb_outport;
-		end 
+		end else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01) begin
+		    att_d <= pb_outport[0];
+		    att_clk <= pb_outport[1];
+		    att_le <= pb_outport[2];
+		end else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b00) begin
+		    bias_enable <= pb_outport[0];
+		end
+		
+		if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01) begin
+		   if (pb_outport[4]) do_ldac[0] <= 1;
+		   if (pb_outport[5]) do_ldac[1] <= 1;
+		end else begin
+		   if (ldac[0]) do_ldac[0] <= 0;
+		   if (ldac[1]) do_ldac[1] <= 0;
+		end
+		
+		if (i2c_last_bit && do_ldac[0]) ldac[0] <= 1;
+        else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01 && pb_outport[6]) ldac[0] <= 0;
+        if (i2c_last_bit && do_ldac[1]) ldac[1] <= 1;
+        else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01 && pb_outport[7]) ldac[1] <= 0;		
+		
 		if (user_sel_i && user_wr_i && user_addr_i == 4'hF) begin
 			processor_reset <= user_dat_i[31];
 			bram_we_enable <= user_dat_i[30];
@@ -315,6 +368,7 @@ module GLITC_external_settings(
 	i2c_master_top #(.WB_LATENCY(0),.ARST_LVL(1'b1)) i2c(.wb_clk_i(user_clk_i),.wb_rst_i(1'b0),
 							 .wb_adr_i(i2c_adr),.wb_cyc_i(i2c_cyc),.wb_stb_i(i2c_stb),
 							 .wb_dat_i(i2c_dat_i),.wb_dat_o(i2c_dat_o),.wb_we_i(i2c_we),
+							 .last_bit_o(i2c_last_bit),
 							 .scl_pad_i(scl_i),.scl_pad_o(scl_o),.scl_padoen_o(scl_oen_o),
 							 .sda_pad_i(sda_i),.sda_pad_o(sda_o),.sda_padoen_o(sda_oen_o),
 							 .debug_o(i2c_debug));
@@ -331,6 +385,14 @@ module GLITC_external_settings(
 											 .bram_we_i(bram_we && bram_we_enable),.bram_adr_i(bram_address_reg),
 											 .bram_dat_i(bram_data_reg),.bram_dat_o(bram_readback),
 											 .bram_rd_i(1'b1),.clk(user_clk_i));
+
+    assign att_d_o = att_d;
+    assign att_clk_o = att_clk;
+    assign att_le_o = att_le;
+
+    assign bias_en_o = bias_enable;
+    
+    assign ldac_o = ~ldac;
 
 	assign debug_o[0 +: 10] = pbAddress;
 	assign debug_o[10 +: 8] = (pb_write) ? pb_outport : pb_inport;

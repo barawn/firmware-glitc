@@ -69,6 +69,13 @@ module glitc_top_v2(
 		    input 	GSEL_B,
 		    inout [7:0] GAD,
 			 
+			 output ATT_D,
+			 output ATT_CLK,
+			 output ATT_LE,
+			 
+			 output [1:0] LDAC,			 
+			 output BIAS_ENABLE,
+			 
 			 inout [4:0] MON
 		    );
 
@@ -194,6 +201,11 @@ module glitc_top_v2(
 												  .user_addr_i(gb_address[3:0]),
 												  .user_dat_i(gb_data_from_tisc),
 												  .user_dat_o(i2c_data),
+												  .att_d_o(ATT_D),
+												  .att_clk_o(ATT_CLK),
+												  .att_le_o(ATT_LE),
+												  .bias_en_o(BIAS_ENABLE),
+												  .ldac_o(LDAC),
 												  .debug_o(i2c_debug),
 												  .scl_i(scl_in),.scl_o(scl_out),.scl_oen_o(scl_oe_b),
 												  .sda_i(sda_in),.sda_o(sda_out),.sda_oen_o(sda_oe_b));
