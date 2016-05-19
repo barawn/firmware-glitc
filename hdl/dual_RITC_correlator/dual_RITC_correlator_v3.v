@@ -109,6 +109,15 @@ module dual_RITC_correlator_v3(
 	//% DINL data inputs for the quad correlations.
 	wire [31:0] dinl_cdi;
 
+    //% Reset all pedestals.
+    wire ped_reset;
+    //% Pedestal address.
+    wire [4:0] ped_addr;
+    //% Pedestal data.
+    wire [47:0] ped_data;
+    //% Pedestal update flag.
+    wire ped_update;
+
     //% Correlation outputs for R0.
 	wire [NCORRBITS-1:0] CORR_R0[NCORR-1:0];
     //% Correlation outputs for R1.
@@ -152,6 +161,10 @@ module dual_RITC_correlator_v3(
 																 .A( achan``_store[ INBITS*aoff +: NBITS ]),   \
 																 .B( bchan``_store[ INBITS*boff +: NBITS ]),   \
 																 .C( cchan``_store[ INBITS*coff +: NBITS ]),   \
+																 .ped_clk_i(user_clk_i),                       \
+																 .ped_rst_i(ped_reset),                        \
+																 .ped_i(ped_data),                             \
+																 .ped_update_i(ped_update && (ped_addr[3:0] == index/4) && !ped_addr[4]), \
 																 .CORR0( CORR_R0[ index ] ),				   \
 																 .CORR1( CORR_R0[ index + 1 ] ),			   \
 																 .CORR2( CORR_R0[ index + 2 ] ),			   \
@@ -163,54 +176,15 @@ module dual_RITC_correlator_v3(
 																 .A( achan``_store[ INBITS*aoff +: NBITS ]), \
 																 .B( bchan``_store[ INBITS*boff +: NBITS ]), \
 																 .C( cchan``_store[ INBITS*coff +: NBITS ]), \
+																 .ped_clk_i(user_clk_i),                       \
+                                                                 .ped_rst_i(ped_reset),                        \
+                                                                 .ped_i(ped_data),                             \
+                                                                 .ped_update_i(ped_update && (ped_addr[3:0] == index/4) && ped_addr[4]), \
 																 .CORR0( CORR_R1[ index ] ),				\
 																 .CORR1( CORR_R1[ index + 1 ] ),			\
 																 .CORR2( CORR_R1[ index + 2 ] ),			\
 																 .CORR3( CORR_R1[ index + 3 ] ))
 
-	`define R0_QUAD_CORRELATOR( a , b , boff , coff , e , f,  b1, c1, i, j, b2, c2, m, n, b3, c3) 	\
-		quad_corr_v9 #(.B_OFFSET(boff % 16),.C_OFFSET(coff % 16),										\
-							.BD1(b1-boff),.CD1(c1-coff),															\
-							.BD2(b2-boff),.CD2(c2-coff),															\
-							.BD3(b3-boff),.CD3(c3-coff))															\
-						   u_r0quadcorr``a( .clk(sysclk_i), 													\
-											 .cdi(dinl_cdi),															\
-											 .ce(dinl_ce[2:0]),														\
-											 .A( A_store[ INBITS*b +: NBITS ] ),								\
-											 .A_sync(A_sync[ b +: DEMUX ]),										\
-											 .B( B_store[ INBITS*boff +: OFFSETBITS ] ),						\
-											 .B_sync(B_sync[ boff +: OFFMUX ]),									\
-											 .C( C_store[ INBITS*coff +: OFFSETBITS ] ),						\
-											 .C_sync(C_sync[ coff +: OFFMUX ]),									\
-											 .CORR0( CORR_R0[ a ] ),												\
-											 .CORR1( CORR_R0[ e ] ),												\
-											 .CORR2( CORR_R0[ i ] ),												\
-											 .CORR3( CORR_R0[ m ] ))
-	`define R1_QUAD_CORRELATOR( a , b , boff , coff , e , f,  b1, c1, i, j, b2, c2, m, n, b3, c3) 	\
-		quad_corr_v9 #(.B_OFFSET(boff % 16),.C_OFFSET(coff % 16),										\
-							.BD1(b1-boff),.CD1(c1-coff),															\
-							.BD2(b2-boff),.CD2(c2-coff),															\
-							.BD3(b3-boff),.CD3(c3-coff))															\
-						   u_r1quadcorr``a( .clk(sysclk_i), 													\
-											 .cdi(dinl_cdi),															\
-											 .ce(dinl_ce[5:3]),														\
-											 .A( D_store[ INBITS*b +: NBITS ] ),								\
-											 .A_sync(D_sync[ b +: DEMUX ]),										\
-											 .B( E_store[ INBITS*boff +: OFFSETBITS ] ),						\
-											 .B_sync(E_sync[ boff +: OFFMUX ]),									\
-											 .C( F_store[ INBITS*coff +: OFFSETBITS ] ),						\
-											 .C_sync(F_sync[ coff +: OFFMUX ]),									\
-											 .CORR0( CORR_R1[ a ] ),												\
-											 .CORR1( CORR_R1[ e ] ),												\
-											 .CORR2( CORR_R1[ i ] ),												\
-											 .CORR3( CORR_R1[ m ] ))
-	
-/*
-	`R0_QUAD_CORRELATOR( 0 , 0 , 3, 2,
-								1 , 0 , 4, 2,
-								2 , 0 , 4, 3,
-								3 , 0 , 5, 3 );
-*/
 	// treat R0 as upper, R1 as lower right now
 	`R0_SIMPLE_QUAD( typeA,  0, A,  0, C,  2, B,  3 );
 	`R0_SIMPLE_QUAD( typeA,  4, A,  0, B,  5, C,  4 );
@@ -266,6 +240,10 @@ module dual_RITC_correlator_v3(
 	RITC_sample_storage_v2 u_storage(.A(A),.B(B),.C(C),.D(D),.E(E),.F(F),.sysclk_i(sysclk_i),.sync_i(sync_i),
 	                                   .dinl_cdi_o(dinl_cdi),
 	                                   .dinl_ce_o(dinl_ce),
+	                                   .ped_rst_o(ped_reset),
+	                                   .ped_update_o(ped_update),
+	                                   .ped_o(ped_data),
+	                                   .ped_addr_o(ped_addr),
 	                                   .trigger_i(trigger_i),
 	                                   .ext_trigger_i(ext_trigger_i),
                                         .user_clk_i(user_clk_i),

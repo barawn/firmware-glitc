@@ -93,7 +93,7 @@ module RITC_dual_datapath_v3(
 	// ch3 = 000
 	// ch4 = 000
 	// ch5 = FFF (all ch2 outputs are inverted)
-	localparam [NUM_CH*NUM_BIT-1:0] BIT_POLARITY = 72'hFFF000000FEF000000;
+	parameter [NUM_CH*NUM_BIT-1:0] BIT_POLARITY = 72'hFFF000000FEF000000;
 	
 	//< IOFIFO reset.
 	wire fifo_reset;

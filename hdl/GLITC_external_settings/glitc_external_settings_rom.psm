@@ -4,12 +4,53 @@ CONSTANT	atten_pending,	02
 CONSTANT	err_out,	03
 CONSTANT	dac_base,	10
 CONSTANT	att_base,	20
+CONSTANT	bias_enable,	30
+CONSTANT	att_control,	31
+
+CONSTANT	att_A,		20
+CONSTANT	att_B,		21
+CONSTANT	att_C,		22
+CONSTANT	att_D,		23
+CONSTANT	att_E,		24
+CONSTANT	att_F,		25
+
+; Attenuator addresses:
+; 000
+; 001
+; 100
+; 101
+; 110
+; 111
+CONSTANT	att_A_address,	00
+CONSTANT	att_B_address,	01
+CONSTANT	att_C_address,	04
+CONSTANT	att_D_address,	05
+CONSTANT	att_E_address,	06
+CONSTANT	att_F_address,	07
+
+CONSTANT	dac_A_L,	10
+CONSTANT	dac_A_H,	11
+CONSTANT	dac_B_L,	12
+CONSTANT	dac_B_H,	13
+CONSTANT	dac_C_L,	14
+CONSTANT	dac_C_H,	15
+CONSTANT	dac_SPARE0_L,	16
+CONSTANT	dac_SPARE0_H,	17
+CONSTANT	dac_D_L,	18
+CONSTANT	dac_D_H,	19
+CONSTANT	dac_E_L,	1A
+CONSTANT	dac_E_H,	1B
+CONSTANT	dac_F_L,	1C
+CONSTANT	dac_F_H,	1D
+CONSTANT	dac_SPARE1_L,	1E
+CONSTANT	dac_SPARE1_H,	1F
 
 CONSTANT	mc_upd_pending, 01
 CONSTANT	mc_err_pending, 02
 CONSTANT	mc_initialized, 04
 CONSTANT	mc_pause,	08
 CONSTANT	mc_reset,	80
+CONSTANT	mc_tiscv2,	10
 
 CONSTANT	prerlo,		80
 CONSTANT	prerhi,		81
@@ -35,6 +76,7 @@ CONSTANT	tca6416a_0,	40
 CONSTANT	tca6416a_1,	42
 CONSTANT	mcp4728_0,	C2
 CONSTANT	mcp4728_1,	C0
+CONSTANT	mcp4728_dflt,	C0
 
 ; Scratchpad RAM locations.
 CONSTANT	i2c_buffer,	 00
@@ -104,13 +146,13 @@ update_mcp4728_0:
 	add	s9, 01
 	add	s8, 01
 	; High byte.
-	input	sA, 11
+	input	sA, dac_A_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 10
+	input	sA, dac_A_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -125,13 +167,13 @@ update_mcp4728_0_dacB:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 13
+	input	sA, dac_B_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 12
+	input	sA, dac_B_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -146,13 +188,13 @@ update_mcp4728_0_dacC:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 15
+	input	sA, dac_C_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 14
+	input	sA, dac_C_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -167,13 +209,13 @@ update_mcp4728_0_dacD:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 17
+	input	sA, dac_SPARE0_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 16
+	input	sA, dac_SPARE0_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -199,13 +241,13 @@ update_mcp4728_1:
 	add	s9, 01
 	add	s8, 01
 	; High byte.
-	input	sA, 19
+	input	sA, dac_D_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 18
+	input	sA, dac_D_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -220,13 +262,13 @@ update_mcp4728_1_dacB:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 1B
+	input	sA, dac_E_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 1A
+	input	sA, dac_E_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -241,13 +283,13 @@ update_mcp4728_1_dacC:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 1D
+	input	sA, dac_F_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 1C
+	input	sA, dac_F_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -262,13 +304,13 @@ update_mcp4728_1_dacD:
 	add	s9, 01
 	add	s8, 01
 	; High byte
-	input	sA, 1F
+	input	sA, dac_SPARE1_H
 	and	sA, 0F
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
 	; Low byte
-	input	sA, 1E
+	input	sA, dac_SPARE1_L
 	store	sA, (s9)
 	add	s9, 01
 	add	s8, 01
@@ -281,16 +323,21 @@ update_mcp4728_1_execute:
 	jump	main_loop		
 
 update_tca6416a_0:
+	load	s3, s0
+	; Is this a TISCv1, or TISCv2?
+	input	s0, master_control
+	test	s0, mc_tiscv2
+	jump	NZ, update_rfsa3713_ABC
 	; For the TCA6416As, we ned to write all of them at once.
 	; The firmware has the FIRST tca6416a inputs wired backwards to the PicoBlaze, so
 	; we don't need to realign them here.
 	load	s8, 02
 	store	s8, i2c_buffer
 	; Fetch first attenuator.
-	input	s8, 20
+	input	s8, att_A
 	and	s8, 1F
 	; Fetch second attenuator.
-	input 	s9, 21
+	input 	s9, att_B
 	and	s9, 1F
 	; Shift first 3 bits into sA's top 3 bits.
 	load	sA, 00
@@ -303,7 +350,7 @@ update_tca6416a_0:
 	; Combine top 3 bits with first attenuator.
 	add	s8, sA
 	; Fetch third attenuator.
-	input	sA, 22
+	input	sA, att_C
 	; Shift it up two.
 	sl0	sA
 	sl0	sA
@@ -322,16 +369,19 @@ update_tca6416a_0:
 	jump	main_loop
 	
 update_tca6416a_1:
+	input	s0, master_control
+	test	s0, mc_tiscv2
+	jump	NZ, update_rfsa3713_DEF
 	; For the TCA6416As, we ned to write all of them at once.
 	; The firmware has the SECOND tca6416a inputs wired direct to the PicoBlaze, so
 	; we don't need to realign them here.
 	load	s8, 02
 	store	s8, i2c_buffer
 	; Fetch first attenuator.
-	input	s8, 23
+	input	s8, att_D
 	and	s8, 1F
 	; Fetch second attenuator.
-	input 	s9, 24
+	input 	s9, att_E
 	and	s9, 1F
 	; Shift first 3 bits into sA's top 3 bits.
 	load	sA, 00
@@ -344,7 +394,7 @@ update_tca6416a_1:
 	; Combine top 3 bits with first attenuator.
 	add	s8, sA
 	; Fetch third attenuator.
-	input	sA, 25
+	input	sA, att_F
 	; Shift it up two.
 	sl0	sA
 	sl0	sA
@@ -362,6 +412,95 @@ update_tca6416a_1:
 	call	i2c_execute
 	jump	main_loop
 
+update_rfsa3713_ABC:
+	; Figure out which attenuators need to be updated,
+	; and do it here.
+update_rfsa3713_A:
+	test    s3, 01
+	jump	Z, update_rfsa3713_B
+	input	s1, att_A
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_A_address
+	call	update_rfsa3713
+update_rfsa3713_B:
+	test	s3, 02
+	jump	Z, update_rfsa3713_C
+	input	s1, att_B
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_B_address
+	call	update_rfsa3713
+update_rfsa3713_C:
+	test	s3, 04
+	jump	Z, update_rfsa3713_ABC_finish
+	input	s1, att_B
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_C_address
+	call	update_rfsa3713
+update_rfsa3713_ABC_finish:
+	output	s3, atten_pending	
+	jump	main_loop
+
+update_rfsa3713_DEF:
+update_rfsa3713_D:
+	test    s3, 08
+	jump	Z, update_rfsa3713_E
+	input	s1, att_D
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_D_address
+	call	update_rfsa3713
+update_rfsa3713_E:
+	test	s3, 10
+	jump	Z, update_rfsa3713_F
+	input	s1, att_E
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_E_address
+	call	update_rfsa3713
+update_rfsa3713_F:
+	test	s3, 20
+	jump	Z, update_rfsa3713_DEF_finish
+	input	s1, att_F
+	; Since we're a TISCv2, the attenuator settings come in directly.
+	load	s0, att_F_address
+	call	update_rfsa3713
+update_rfsa3713_DEF_finish:
+	output	s3, atten_pending
+	jump	main_loop
+
+
+	; s0 contains the attenuator address code to update.
+	; s1 contains the value to update it to.
+	; First, we clock in the attenuator address code. LSB first.
+update_rfsa3713:
+	load	s8, 08
+update_rfsa3713_jp1:
+	sr0	s1					; Shift s1 right.
+	load	s9, 00					; Clear S9, prepping for carry add
+	addcy	s9, 00					; Add carry from the s1 shift. (s9 is now 0 or 1)
+	output	s9, att_control				; Output it.
+	or	s9, 02					; Raise clk.
+	output	s9, att_control				; Output it.
+	xor	s9, 02					; Clear clock.
+	output	s9, att_control				; Output it.
+	sub	s8, 01					; Clocked out 8 bits yet?
+	jump	NZ, update_rfsa3713_jp1
+	load	s8, 08					; Set up 8 bit shift.
+update_rfsa3713_jp2:
+	sr0	s0					; Shift s0 right.
+	load	s9, 00					; Clear s9, prepping for carry add.
+	addcy	s9, 00					; Add carry from s0 shift. (s9 is now 0 or 1)
+	output	s9, att_control				; Output it.
+	or	s9, 02					; Raise clk.
+	output	s9, att_control				; Output it.
+	xor	s9, 02					; Lower clk.
+	output	s9, att_control				; Output it.
+	sub	s8, 01					; Clocked out 8 bits yet?
+	jump	NZ, update_rfsa3713_jp2
+	load	s9, 04					; Raise LE.
+	output	s9, att_control				; Output it.
+	load	s9, 00					; Lower LE.
+	output	s9, att_control				; Output it.
+	return	    					; Done.
+	
 read_error:
 	input	s0, master_control		; fetch master control
 	test	s0, mc_err_pending		; is the error pending set?
@@ -389,65 +528,85 @@ i2c_initialize:
 	output	s0, prerhi
 	load	s0, 80
 	output	s0, ctr
+
+i2c_initialize_jp0:
 	load	s0, tca6416a_0
 	; NZ indicates error
 	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp0
-	load	s0, err_tca6416a_0_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp0:
+	jump	Z, i2c_initialize_jp1
+	; No TCA6416, so we're a TISCv2
+	load 	s0, mc_tiscv2
+	output	s0, master_control
+	jump	i2c_initialize_jp4
+i2c_initialize_jp1:
 	load	s0, tca6416a_1
 	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp1
+	jump	Z, i2c_initialize_jp2
 	load	s0, err_tca6416a_1_NACKed
 	call	write_error
 	load	s1, 01
-i2c_initialize_jp1:
-	load	s0, mcp4728_0
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp2
-	load	s0, err_mcp4728_0_NACKed
-	call	write_error
-	load	s1, 01
+	; Both TCA6416s are present. Set them up.
 i2c_initialize_jp2:
-	load	s0, mcp4728_1
-	call	i2c_check_if_present
-	jump	Z, i2c_initialize_jp3
-	load	s0, err_mcp4728_1_NACKed
-	call	write_error
-	load	s1, 01
-
-	; At this point, all devices present. Now setup.
-i2c_initialize_jp3:
 	load    s0, tca6416a_0
 	call	tca6416a_initialize
-	jump	Z, i2c_initialize_jp4
+	jump	Z, i2c_initialize_jp3
 	load	s0, err_tca6416a_0_NACKed
+	call	write_error
+	load	s1, 01
+i2c_initialize_jp3:
+	load	s0, tca6416a_1
+	call	tca6416a_initialize
+	jump	Z, i2c_initialize_jp4
+	load	s0, err_tca6416a_1_NACKed
 	call	write_error
 	load	s1, 01
 i2c_initialize_jp4:
-	load	s0, tca6416a_1
-	call	tca6416a_initialize
-	jump	Z, i2c_initialize_jp5
-	load	s0, err_tca6416a_1_NACKed
-	call	write_error
-	load	s1, 01
-i2c_initialize_jp5:
+	; MCP4728
+	; TISCv2, yes or no?
+	input	s4, master_control
+	; Check if the first MCP4728 is present.
 	load	s0, mcp4728_0
-	call	mcp4728_initialize
+	call	i2c_check_if_present
+	; No error?
 	jump	Z, i2c_initialize_jp6
+	test	s4, mc_tiscv2
+	jump	NZ, i2c_initialize_jp5
 	load	s0, err_mcp4728_0_NACKed
 	call	write_error
 	load	s1, 01
+	jump	i2c_initialize_jp6
+i2c_initialize_jp5:
+	call	program_mcp4728
+	; So now probe the two DACs.
 i2c_initialize_jp6:
-	load	s0, mcp4728_1
-	call	mcp4728_initialize
+	load	s0, mcp4728_0
+	call	i2c_check_if_present
 	jump	Z, i2c_initialize_jp7
-	load	s0, err_mcp4728_1_NACKed
+	load	s0, err_mcp4728_0_NACKed
 	call	write_error
 	load	s1, 01
 i2c_initialize_jp7:
+	load	s0, mcp4728_1
+	call	i2c_check_if_present
+	jump	Z, i2c_initialize_jp8
+	load	s0, err_mcp4728_1_NACKed
+	call	write_error
+	load	s1, 01
+i2c_initialize_jp8:
+	load	s0, mcp4728_0
+	call	mcp4728_initialize
+	jump	Z, i2c_initialize_jp9
+	load	s0, err_mcp4728_0_NACKed
+	call	write_error
+	load	s1, 01
+i2c_initialize_jp9:
+	load	s0, mcp4728_1
+	call	mcp4728_initialize
+	jump	Z, i2c_initialize_jp10
+	load	s0, err_mcp4728_1_NACKed
+	call	write_error
+	load	s1, 01
+i2c_initialize_jp10:
 	test	s1, 01
 	return	Z
 	store	s1, i2c_initialized
@@ -477,15 +636,73 @@ tca6416a_initialize:
 	return
 
 	; s0: address of mcp4728 to initialize
+	; Initializes MCP4728 by setting all gains to 1.
+	; 
 	; Return NZ with error.
 mcp4728_initialize:
-	load	s1, 02
+	load	s1, 01
 	load	s2, 00
 	load	s8, C0
 	store	s8, i2c_buffer
-	store	s2, i2c_buffer_1
 	call	i2c_execute
 	return
+
+program_mcp4728:
+	call i2c_wait_until_done
+	
+	load	s8, C0
+	output	s8, att_control
+	load	s8, mcp4728_dflt
+	output	s8, txr
+	load	s8, cr_wr_and_sta
+	output	s8, cr
+	call 	i2c_wait_until_done
+	test 	s8, sr_rxack
+	jump	NZ, program_mcp4728_stop_return
+	; Command bits = 011, current address = 000, and 01 in bottom bits.
+	load	s8, 61
+	output	s8, txr
+	load	s8, cr_wr
+	output	s8, cr
+	; set do_ldac.
+	load	s8, 10
+	output	s8, att_control
+	call	i2c_wait_until_done
+	test	s8, sr_rxack
+	jump	NZ, program_mcp4728_stop_return
+	; Command bits = 011, new address = 001, and 10 in bottom bits
+	load	s8, 66
+	output	s8, txr
+	load	s8, cr_wr
+	output	s8, cr
+	call	i2c_wait_until_done
+	test	s8, sr_rxack
+	jump	NZ, program_mcp4728_stop_return
+	; Command bits = 011, new address = 001, and 11 in bottom bits.
+	load	s8, 67
+	output	s8, txr
+	load	s8, cr_wr
+	output	s8, cr
+	call	i2c_wait_until_done
+	test	s8, sr_rxack
+	jump	NZ, program_mcp4728_stop_return
+	load	s8, cr_sto
+	output	s8, cr
+	call	i2c_wait_until_free
+	; clear ldac
+	load	s8, C0
+	output	s8, att_control
+	return	
+program_mcp4728_stop_return:
+	load	s8, cr_sto
+	output	s8, cr
+	call	i2c_wait_until_free
+	; Need to clear Z.
+	sl1    s8
+	load   s8, C0
+	output s8, att_control
+	return
+	
 
 	; s0 = i2c_address
 	; s1 = i2c_txlen

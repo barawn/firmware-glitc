@@ -96,7 +96,7 @@ module GLITC_external_settings(
 	reg [7:0]  dac_eeprom_write = {8{1'b0}};
 
 	//% Attenuator settings.
-	reg [5:0] atten_settings[5:0];
+	reg [6:0] atten_settings[5:0];
 	integer att_i;
 	initial for (att_i=0;att_i<6;att_i=att_i+1) atten_settings[att_i] <= {6{1'b0}};
 
@@ -214,6 +214,13 @@ module GLITC_external_settings(
 	reg [1:0] ldac = {2{1'b0}};
 	//% Last bit of the I2C sequence.
 	wire i2c_last_bit;
+	reg i2c_last_bit_delayed = 0;
+	reg [15:0] i2c_last_bit_shreg = {16{1'b0}};
+	
+	always @(posedge user_clk_i) begin
+	   i2c_last_bit_shreg <= {i2c_last_bit_shreg[14:0],i2c_last_bit};
+	   i2c_last_bit_delayed <= i2c_last_bit_shreg[15];
+    end
 	
 	//% Bias-tee enable.
 	reg bias_enable = 0;
@@ -256,7 +263,7 @@ module GLITC_external_settings(
 	wire [15:0] pb_dac_mux = user_data_out[pb_port[3:1]];
 	wire [7:0] pb_dac_mux_byte = (pb_port[0]) ? pb_dac_mux[15:8] : pb_dac_mux[7:0];
 	//// Attenuator multiplexing.
-	wire [5:0] pb_atten_settings[7:0];
+	wire [6:0] pb_atten_settings[7:0];
 	//// Reverse the first 3 attenuator inputs into the PicoBlaze.
 	assign pb_atten_settings[0] = (pb_tiscv2) ? atten_settings[0] : atten0_convert(atten_settings[0]); 
 	assign pb_atten_settings[1] = (pb_tiscv2) ? atten_settings[1] : atten0_convert(atten_settings[1]); 
@@ -290,12 +297,12 @@ module GLITC_external_settings(
 				dac_settings[user_addr_i[2:0]] <= user_dat_i[11:0];
 				dac_eeprom_write[user_addr_i[2:0]] <= user_dat_i[15];
 			end
-			if (user_addr_i == 4'h8) atten_settings[0] <= user_dat_i[5:0];
-			if (user_addr_i == 4'h9) atten_settings[1] <= user_dat_i[5:0];
-			if (user_addr_i == 4'hA) atten_settings[2] <= user_dat_i[5:0];
-			if (user_addr_i == 4'hB) atten_settings[3] <= user_dat_i[5:0];
-			if (user_addr_i == 4'hC) atten_settings[4] <= user_dat_i[5:0];
-			if (user_addr_i == 4'hD) atten_settings[5] <= user_dat_i[5:0];
+			if (user_addr_i == 4'h8) atten_settings[0] <= user_dat_i[6:0];
+			if (user_addr_i == 4'h9) atten_settings[1] <= user_dat_i[6:0];
+			if (user_addr_i == 4'hA) atten_settings[2] <= user_dat_i[6:0];
+			if (user_addr_i == 4'hB) atten_settings[3] <= user_dat_i[6:0];
+			if (user_addr_i == 4'hC) atten_settings[4] <= user_dat_i[6:0];
+			if (user_addr_i == 4'hD) atten_settings[5] <= user_dat_i[6:0];
 		end
 		if (user_sel_i && user_wr_i && !user_addr_i[3]) dac_update_pending[user_addr_i[2:0]] <= 1;
 		else if (pb_write && pb_sel_ctl && pb_port[1:0] == 2'b01) dac_update_pending <= dac_update_pending ^ pb_outport;
@@ -347,9 +354,9 @@ module GLITC_external_settings(
 		   if (ldac[1]) do_ldac[1] <= 0;
 		end
 		
-		if (i2c_last_bit && do_ldac[0]) ldac[0] <= 1;
+		if (i2c_last_bit_delayed && do_ldac[0]) ldac[0] <= 1;
         else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01 && pb_outport[6]) ldac[0] <= 0;
-        if (i2c_last_bit && do_ldac[1]) ldac[1] <= 1;
+        if (i2c_last_bit_delayed && do_ldac[1]) ldac[1] <= 0;
         else if (pb_write && pb_sel_tv2 && pb_port[1:0] == 2'b01 && pb_outport[7]) ldac[1] <= 0;		
 		
 		if (user_sel_i && user_wr_i && user_addr_i == 4'hF) begin
@@ -407,4 +414,12 @@ module GLITC_external_settings(
 	assign debug_o[26] = pb_initialized;
 	assign debug_o[27 +: 18] = pbInstruction;
 	assign debug_o[45 +: 6] = i2c_debug;
+	assign debug_o[51] = ldac[0];
+	assign debug_o[52] = ldac[1];
+	assign debug_o[53] = i2c_last_bit;
+	assign debug_o[54] = do_ldac[0];
+	assign debug_o[55] = do_ldac[1];
+	assign debug_o[56] = att_d;
+	assign debug_o[57] = att_clk;
+	assign debug_o[58] = att_le;
 endmodule

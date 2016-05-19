@@ -36,15 +36,15 @@ module quad_corr_v11_base(
 		clk,
 		sync,
         cdi,
-        ce,        
+        ce,
+        ped_clk_i,
+        ped_rst_i,
+        ped_i,
+        ped_update_i,        
 		A,B,C,
-		PED0,
 		CORR0,
-		PED1,
 		CORR1,
-		PED2,
 		CORR2,
-		PED3,
 		CORR3
     );
 
@@ -190,26 +190,23 @@ module quad_corr_v11_base(
 	
 	//% Correlation 0 output.
 	output [POWERBITS-1:0] CORR0;
-	//% Pedestal of CORR0.
-	input [POWERBITS-1:0] PED0;
 	//% Correlation 1 output.
 	output [POWERBITS-1:0] CORR1;
-	//% Pedestal of CORR1.
-	input [POWERBITS-1:0] PED1;
 	//% Correlation 2 output.
 	output [POWERBITS-1:0] CORR2;
-	//% Pedestal of CORR2.
-	input [POWERBITS-1:0] PED2;
 	//% Correlation 3 output.
 	output [POWERBITS-1:0] CORR3;
-	//% Pedestal of CORR3.
-	input [POWERBITS-1:0] PED3;
 	
 	input clk;
 	input sync;
 	input cdi;
     input ce;
 	
+	input ped_rst_i;
+	input [47:0] ped_i;
+	input ped_update_i;
+	input ped_clk_i;
+
 	//% Vectorized A inputs.
 	wire [NCBITS-1:0] AV[NCORRS-1:0];
 	//% Vectorized B inputs.
@@ -241,6 +238,16 @@ module quad_corr_v11_base(
 	`VECTORIZE(A);
 	`VECTORIZE(B);
 	`VECTORIZE(C);
+	
+	//% Pedestal reset signal in sysclk domain
+	wire ped_rst_sysclk;
+	//% Pedestal update signal in sysclk domain
+	wire ped_update_sysclk;
+	
+	flag_sync u_pedrst_sync(.in_clkA(ped_rst_i),.clkA(ped_clk_i),
+	                        .out_clkB(ped_rst_sysclk),.clkB(clk_i));
+    flag_sync u_pedupdate_sync(.in_clkA(ped_update_i),.clkA(ped_clk_i),
+                               .out_clkB(ped_update_sysclk),.clkB(clk_i));	                        
 
     //% Generate a local copy of sync. Sync toggles every cycle, so delay by 1 and invert, and there's your copy.
 	always @(posedge clk) local_sync <= ~sync;
@@ -301,26 +308,28 @@ module quad_corr_v11_base(
 	
 	assign DSP_INPUT[6][0] = DSP_OUTPUT[2][0];
 	// This is the constant term (the value to be subtracted off, if desired).
-	assign DSP_INPUT[6][1] = PED0;
+	assign DSP_INPUT[6][1] = ped_i[0 +: 12];
 
 	assign DSP_INPUT[6][2] = DSP_OUTPUT[2][1];
 	// This is the constant term (the value to be subtracted off, if desired).
-	assign DSP_INPUT[6][3] = PED1;
+	assign DSP_INPUT[6][3] = ped_i[12 +: 12];
 
 	assign DSP_INPUT[6][4] = DSP_OUTPUT[2][2];
 	// This is the constant term (the value to be subtracted off, if desired).
-	assign DSP_INPUT[6][5] = PED2;
+	assign DSP_INPUT[6][5] = ped_i[24 +: 12];
 
 	assign DSP_INPUT[6][6] = DSP_OUTPUT[2][3];
 	// This is the constant term (the value to be subtracted off, if desired).
-	assign DSP_INPUT[6][7] = PED3;
+	assign DSP_INPUT[6][7] = ped_i[36 +: 12];
 	
 	
-	quad_dsp_sum #(.ADD_CASCADE(1), .INPUT_REG(1) ,.OUTPUT_REG(1))
-		u_final_dsp( .A(DSP_INPUT[6][0]), .B(DSP_INPUT[6][1]),
-						 .C(DSP_INPUT[6][2]), .D(DSP_INPUT[6][3]),
-						 .E(DSP_INPUT[6][4]), .F(DSP_INPUT[6][5]),
-						 .G(DSP_INPUT[6][6]), .H(DSP_INPUT[6][7]),
+	quad_dsp_sum_with_pedestal #(.ADD_CASCADE(1), .INPUT_REG(1) ,.OUTPUT_REG(1))
+		u_final_dsp( .A(DSP_INPUT[6][0]), .APED(DSP_INPUT[6][1]),
+						 .C(DSP_INPUT[6][2]), .CPED(DSP_INPUT[6][3]),
+						 .E(DSP_INPUT[6][4]), .EPED(DSP_INPUT[6][5]),
+						 .G(DSP_INPUT[6][6]), .GPED(DSP_INPUT[6][7]),
+						 .ped_rst_i(ped_rst_sysclk),
+						 .ped_update_i(ped_update_sysclk),
 						 .APB(DSP_SUM[0]),
 						 .CPD(DSP_SUM[1]),
 						 .EPF(DSP_SUM[2]),
@@ -339,14 +348,14 @@ module quad_corr_v11_typeA(
 		sync,
         cdi,
         ce,        
+        ped_clk_i,
+        ped_rst_i,
+        ped_i,
+        ped_update_i,        
 		A,B,C,
-		PED0,
 		CORR0,
-		PED1,
 		CORR1,
-		PED2,
 		CORR2,
-		PED3,
 		CORR3
     );
 
@@ -374,6 +383,11 @@ module quad_corr_v11_typeA(
     input cdi;
     input ce;
 
+	input ped_rst_i;
+	input [47:0] ped_i;
+	input ped_update_i;
+	input ped_clk_i;
+
 	//% A inputs.
 	input [DEMUX*INBITS-1:0] A;
 	//% B inputs.
@@ -383,24 +397,16 @@ module quad_corr_v11_typeA(
 
 	//% Correlation 0 output.
 	output [POWERBITS-1:0] CORR0;
-	//% Pedestal of CORR0.
-	input [POWERBITS-1:0] PED0;
 	//% Correlation 1 output.
 	output [POWERBITS-1:0] CORR1;
-	//% Pedestal of CORR1.
-	input [POWERBITS-1:0] PED1;
 	//% Correlation 2 output.
 	output [POWERBITS-1:0] CORR2;
-	//% Pedestal of CORR2.
-	input [POWERBITS-1:0] PED2;
 	//% Correlation 3 output.
 	output [POWERBITS-1:0] CORR3;
-	//% Pedestal of CORR3.
-	input [POWERBITS-1:0] PED3;
 
     quad_corr_v11_base #(.DELAY(DELAY),.DEMUX(DEMUX),.INBITS(INBITS),.NBITS(NBITS),.ADDSQBITS(ADDSQBITS),.NCARRYBITS(NCARRYBITS),.NCORRS(NCORRS),.POWERBITS(POWERBITS),.TYPE("TYPEA"))
-        u_typeA(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.PED0(PED0),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.PED1(PED1),.PED2(PED2),.PED3(PED3));
-    
+        u_typeA(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.ped_clk_i(ped_clk_i),.ped_rst_i(ped_rst_i),.ped_i(ped_i),.ped_update_i(ped_update_i));
+        
 endmodule
 
 module quad_corr_v11_typeB(
@@ -408,14 +414,14 @@ module quad_corr_v11_typeB(
 		sync,
         cdi,
         ce,        
+        ped_clk_i,
+        ped_rst_i,
+        ped_i,
+        ped_update_i,        
 		A,B,C,
-		PED0,
 		CORR0,
-		PED1,
 		CORR1,
-		PED2,
 		CORR2,
-		PED3,
 		CORR3
     );
 
@@ -443,6 +449,11 @@ module quad_corr_v11_typeB(
     input cdi;
     input ce;
 
+	input ped_rst_i;
+	input [47:0] ped_i;
+	input ped_update_i;
+	input ped_clk_i;
+
 	//% A inputs.
 	input [DEMUX*INBITS-1:0] A;
 	//% B inputs.
@@ -452,23 +463,15 @@ module quad_corr_v11_typeB(
 
 	//% Correlation 0 output.
 	output [POWERBITS-1:0] CORR0;
-	//% Pedestal of CORR0.
-	input [POWERBITS-1:0] PED0;
 	//% Correlation 1 output.
 	output [POWERBITS-1:0] CORR1;
-	//% Pedestal of CORR1.
-	input [POWERBITS-1:0] PED1;
 	//% Correlation 2 output.
 	output [POWERBITS-1:0] CORR2;
-	//% Pedestal of CORR2.
-	input [POWERBITS-1:0] PED2;
 	//% Correlation 3 output.
 	output [POWERBITS-1:0] CORR3;
-	//% Pedestal of CORR3.
-	input [POWERBITS-1:0] PED3;
 
     quad_corr_v11_base #(.DELAY(DELAY),.DEMUX(DEMUX),.INBITS(INBITS),.NBITS(NBITS),.ADDSQBITS(ADDSQBITS),.NCARRYBITS(NCARRYBITS),.NCORRS(NCORRS),.POWERBITS(POWERBITS),.TYPE("TYPEB"))
-        u_typeB(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.PED0(PED0),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.PED1(PED1),.PED2(PED2),.PED3(PED3));
+        u_typeB(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.ped_clk_i(ped_clk_i),.ped_rst_i(ped_rst_i),.ped_i(ped_i),.ped_update_i(ped_update_i));
     
 endmodule
 
@@ -477,14 +480,14 @@ module quad_corr_v11_typeC(
 		sync,
         cdi,
         ce,        
+        ped_clk_i,
+        ped_rst_i,
+        ped_i,
+        ped_update_i,        
 		A,B,C,
-		PED0,
 		CORR0,
-		PED1,
 		CORR1,
-		PED2,
 		CORR2,
-		PED3,
 		CORR3
     );
 
@@ -512,6 +515,11 @@ module quad_corr_v11_typeC(
     input cdi;
     input ce;
 
+	input ped_rst_i;
+	input [47:0] ped_i;
+	input ped_update_i;
+	input ped_clk_i;
+
 	//% A inputs.
 	input [DEMUX*INBITS-1:0] A;
 	//% B inputs.
@@ -521,22 +529,14 @@ module quad_corr_v11_typeC(
 
 	//% Correlation 0 output.
 	output [POWERBITS-1:0] CORR0;
-	//% Pedestal of CORR0.
-	input [POWERBITS-1:0] PED0;
 	//% Correlation 1 output.
 	output [POWERBITS-1:0] CORR1;
-	//% Pedestal of CORR1.
-	input [POWERBITS-1:0] PED1;
 	//% Correlation 2 output.
 	output [POWERBITS-1:0] CORR2;
-	//% Pedestal of CORR2.
-	input [POWERBITS-1:0] PED2;
 	//% Correlation 3 output.
 	output [POWERBITS-1:0] CORR3;
-	//% Pedestal of CORR3.
-	input [POWERBITS-1:0] PED3;
 
     quad_corr_v11_base #(.DELAY(DELAY),.DEMUX(DEMUX),.INBITS(INBITS),.NBITS(NBITS),.ADDSQBITS(ADDSQBITS),.NCARRYBITS(NCARRYBITS),.NCORRS(NCORRS),.POWERBITS(POWERBITS),.TYPE("TYPEC"))
-        u_typeC(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.PED0(PED0),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.PED1(PED1),.PED2(PED2),.PED3(PED3));
+        u_typeC(.clk(clk),.sync(sync),.cdi(cdi),.ce(ce),.A(A),.B(B),.C(C),.CORR0(CORR0),.CORR1(CORR1),.CORR2(CORR2),.CORR3(CORR3),.ped_clk_i(ped_clk_i),.ped_rst_i(ped_rst_i),.ped_i(ped_i),.ped_update_i(ped_update_i));
     
 endmodule

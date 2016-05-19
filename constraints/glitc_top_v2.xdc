@@ -543,8 +543,12 @@ set_property PACKAGE_PIN B2 [get_ports {TOUT_N[1]}]
 set_property IOSTANDARD LVDS_25 [get_ports {TOUT_P[0]}]
 set_property IOSTANDARD LVDS_25 [get_ports {TOUT_P[1]}]
 
-set_property PACKAGE_PIN G15 [get_ports ATT_D]
-set_property PACKAGE_PIN G16 [get_ports ATT_CLK]
+
+# from left to right: D, CLK, LE
+# was: CLK, D, LE
+# so switch D , CLK wrt schematic
+set_property PACKAGE_PIN G15 [get_ports ATT_CLK]
+set_property PACKAGE_PIN G16 [get_ports ATT_D]
 set_property PACKAGE_PIN G17 [get_ports ATT_LE]
 set_property IOSTANDARD LVCMOS25 [get_ports ATT_D]
 set_property IOSTANDARD LVCMOS25 [get_ports ATT_CLK]
@@ -552,6 +556,14 @@ set_property IOSTANDARD LVCMOS25 [get_ports ATT_LE]
 
 set_property PACKAGE_PIN H18 [get_ports BIAS_ENABLE]
 set_property IOSTANDARD LVCMOS25 [get_ports BIAS_ENABLE]
+
+set_property PACKAGE_PIN P15 [get_ports {nDAC_DOUT[0]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {nDAC_DOUT[0]}]
+set_property PULLUP TRUE [get_ports {nDAC_DOUT[0]}]
+set_property PACKAGE_PIN F4 [get_ports {nDAC_DOUT[1]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {nDAC_DOUT[1]}]
+set_property PULLUP TRUE [get_ports {nDAC_DOUT[1]}]
+
 
 set_property PACKAGE_PIN G18 [get_ports {LDAC[0]}]
 set_property PACKAGE_PIN K4 [get_ports {LDAC[1]}]

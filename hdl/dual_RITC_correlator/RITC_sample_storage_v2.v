@@ -5,6 +5,8 @@
 //% This is a more full-featured module: the control is now inside this module,
 //% it now contains a pretrigger and a viable external trigger. It also contains
 //% a "training view" and an autoclear function, as well as the dynamic INL correction.
+//% It also contains pedestal control for the correlator. So I may actually export this
+//% to a separate "dual_RITC_correlator_control" module for clean separation.
 //%
 //% Each buffer is 256 (162.5 MHz) samples (= 4096 2.6 GSa/s samples) long
 //% There are 2 reads needed per channel per sample (24 bits per read)
@@ -19,8 +21,14 @@ module RITC_sample_storage_v2(
         input [31:0] user_dat_i,
         output [31:0] user_dat_o,
         output [31:0] sample_dat_o,
+
         output [31:0] dinl_cdi_o,
         output dinl_ce_o,
+
+        output ped_rst_o,
+        output [47:0] ped_o,
+        output [4:0] ped_addr_o,
+        output ped_update_o,
         
         input sysclk_i,
         input sync_i,
@@ -72,6 +80,21 @@ module RITC_sample_storage_v2(
     reg dinl_ce = 0;
     reg [31:0] dinl_data = {32{1'b0}};
 
+    reg ped_reset = 0;
+    reg ped_update = 0;
+    reg [47:0] ped_data = {48{1'b0}};
+    wire [11:0] ped_data_muxed[3:0];
+    assign ped_data_muxed[0] = ped_data[0 +: 12];
+    assign ped_data_muxed[1] = ped_data[12 +: 12];
+    assign ped_data_muxed[2] = ped_data[24 +: 12];
+    assign ped_data_muxed[3] = ped_data[36 +: 12];
+    reg [6:0] ped_addr = {7{1'b0}};
+    wire [3:0] ped_data_ce;
+    assign ped_data_ce[0] = (user_dat_i[17:16] == 2'b00);
+    assign ped_data_ce[1] = (user_dat_i[17:16] == 2'b01);
+    assign ped_data_ce[2] = (user_dat_i[17:16] == 2'b10);
+    assign ped_data_ce[3] = (user_dat_i[17:16] == 2'b11);
+
     wire [1:0] buffer_write_addr;
     wire [1:0] buffer_read_addr;
 
@@ -104,8 +127,19 @@ module RITC_sample_storage_v2(
                             {2{1'b0}}, ext_trigger_enable, trigger_enable,
                             {3{1'b0}}, read_is_safe};
     wire [31:0] DINLCTRL = dinl_data;
+    wire [31:0] PEDCTRL = {{9{1'b0}},ped_addr,{4{1'b0}},ped_data_muxed[ped_addr[1:0]]};
 
-    assign user_dat_o = (user_addr_i[0]) ? DINLCTRL : STORCTRL;
+    wire sel_storctrl = (user_addr_i[1:0] == 2'b00);
+    wire sel_dinlctrl = (user_addr_i[1:0] == 2'b01) || (user_addr_i[1:0] == 2'b10);
+    wire sel_pedctrl = (user_addr_i[1:0] == 2'b10);
+    
+    wire [31:0] user_data_demuxed[3:0];
+    assign user_data_demuxed[0] = STORCTRL;
+    assign user_data_demuxed[1] = DINLCTRL;
+    assign user_data_demuxed[2] = PEDCTRL;
+    assign user_data_demuxed[3] = DINLCTRL;
+
+    assign user_dat_o = user_data_demuxed[user_addr_i[1:0]];
 
     always @(posedge user_clk_i) begin
         // register these in user clk domain. These are Gray-coded so functionally static.
@@ -115,7 +149,7 @@ module RITC_sample_storage_v2(
         
         read_is_safe <= (buffer_read_addr_reg != buffer_write_addr_reg);
         
-        if (user_sel_i && user_wr_i && user_addr_i[1:0] == 2'b00) begin        
+        if (user_sel_i && user_wr_i && sel_storctrl) begin        
             reset <= user_dat_i[3];
             clear <= user_dat_i[2];
             soft_trigger <= user_dat_i[1];
@@ -129,11 +163,26 @@ module RITC_sample_storage_v2(
 
         // address 1 can write to dinl_data freely
         // address 3 also issues a CE.        
-        if (user_sel_i && user_wr_i && user_addr_i[0] == 1'b1) begin
+        if (user_sel_i && user_wr_i && sel_dinlctrl) begin
             dinl_ce <= user_addr_i[1];
             dinl_data <= user_dat_i;
         end else begin
             dinl_ce <= 0;
+        end
+        
+        if (user_sel_i && user_wr_i && sel_pedctrl) begin
+            ped_reset <= user_dat_i[31];
+            ped_update <= ~user_dat_i[31];
+
+            if (ped_data_ce[0]) ped_data[0 +: 12] <= user_dat_i[11:0];
+            if (ped_data_ce[1]) ped_data[12 +: 12] <= user_dat_i[11:0];
+            if (ped_data_ce[2]) ped_data[24 +: 12] <= user_dat_i[11:0];
+            if (ped_data_ce[3]) ped_data[36 +: 12] <= user_dat_i[11:0];
+
+            ped_addr <= user_dat_i[16 +: 7];
+        end else begin
+            ped_reset <= 0;
+            ped_update <= 0;
         end
         
         if (reset || clear) 
@@ -190,4 +239,9 @@ module RITC_sample_storage_v2(
 
     assign dinl_ce_o = dinl_ce;
     assign dinl_cdi_o = dinl_data;
+
+    assign ped_rst_o = ped_reset;
+    assign ped_addr_o = ped_addr[6:2];
+    assign ped_o = ped_data; 
+    assign ped_update_o = ped_update;
 endmodule

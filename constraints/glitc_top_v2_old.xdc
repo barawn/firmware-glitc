@@ -553,6 +553,30 @@ set_property IOSTANDARD LVDS_25 [get_ports {TOUT_N[1]}]
 #set_property DIFF_TERM TRUE [get_ports TIN_P]
 #set_property DIFF_TERM TRUE [get_ports TIN_N]
 
+set_property PACKAGE_PIN H18 [get_ports BIAS_ENABLE]
+set_property IOSTANDARD LVCMOS25 [get_ports BIAS_ENABLE]
+
+set_property PACKAGE_PIN P15 [get_ports {nDAC_DOUT[0]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {nDAC_DOUT[0]}]
+set_property PULLUP TRUE [get_ports {nDAC_DOUT[0]}]
+set_property PACKAGE_PIN F4 [get_ports {nDAC_DOUT[1]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {nDAC_DOUT[1]}]
+set_property PULLUP TRUE [get_ports {nDAC_DOUT[1]}]
+
+
+set_property PACKAGE_PIN G18 [get_ports {LDAC[0]}]
+set_property PACKAGE_PIN K4 [get_ports {LDAC[1]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {LDAC[0]}]
+set_property IOSTANDARD LVCMOS25 [get_ports {LDAC[1]}]
+
+set_property PACKAGE_PIN G15 [get_ports ATT_CLK]
+set_property PACKAGE_PIN G16 [get_ports ATT_D]
+set_property PACKAGE_PIN G17 [get_ports ATT_LE]
+set_property IOSTANDARD LVCMOS25 [get_ports ATT_D]
+set_property IOSTANDARD LVCMOS25 [get_ports ATT_CLK]
+set_property IOSTANDARD LVCMOS25 [get_ports ATT_LE]
+
+
 create_clock -period 3.077 -name A_CLK_P -waveform {0.000 1.538} [get_ports A_CLK_P]
 create_clock -period 3.077 -name B_CLK_P -waveform {0.000 1.538} [get_ports B_CLK_P]
 create_clock -period 3.077 -name C_CLK_P -waveform {0.000 1.538} [get_ports C_CLK_P]

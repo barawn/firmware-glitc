@@ -60,6 +60,8 @@ module RITC_full_datapath_v2(
 		output [15:0] debug_o
     );
 
+    parameter [71:0] BIT_POLARITY = 72'hFFF000000FEF000000;
+
 	// Datapath register map:
 	// 0x00: Datapath Reset/Enable register.
 	// 0x01: Bitslip control register.
@@ -97,7 +99,7 @@ module RITC_full_datapath_v2(
 	// The datapath - both IDELAY and ISERDES control - are now
 	// located in a single module, feeding a hard macro which forces everything into the
 	// same ILOGIC pair.
-	RITC_dual_datapath_v3 u_datapath(
+	RITC_dual_datapath_v3 #(.BIT_POLARITY(BIT_POLARITY))  u_datapath(
 												// Clocks. This module takes them all.
 												.SYSCLK(SYSCLK),
 												.DATACLK(DATACLK),

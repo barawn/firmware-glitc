@@ -63,7 +63,7 @@ module glitc_top_v2(
 		    output [1:0] DAC_DIN,
 		    output [1:0] DAC_LATCH,
 		    output [1:0] DAC_CLK,
-
+            input  [1:0] nDAC_DOUT,
 		    inout 	GA_SDA,
 		    inout 	GA_SCL,
 
@@ -81,14 +81,15 @@ module glitc_top_v2(
 			 
 			 inout [4:0] MON
 		    );
-
-	localparam [3:0] VER_BOARDREV = 1;
+	localparam [3:0] VER_BOARDREV = 0;
 	localparam [3:0] VER_MONTH = 4;
-	localparam [7:0] VER_DAY = 6;
+	localparam [7:0] VER_DAY = 19;
 	localparam [3:0] VER_MAJOR = 0;
 	localparam [3:0] VER_MINOR = 6;
-	localparam [7:0] VER_REV = 0;
+	localparam [7:0] VER_REV = 3;
 	localparam [31:0] VERSION = {VER_BOARDREV,VER_MONTH,VER_DAY,VER_MAJOR,VER_MINOR,VER_REV};
+
+    localparam [71:0] BIT_POLARITY = (VER_BOARDREV == 4'h0) ? 72'hFFF000000FEF000000 : 72'hFFF000000FEF000400;
 
    // GLITCBUS clock.
    wire 			gb_clk;
@@ -222,8 +223,6 @@ module glitc_top_v2(
 	wire servo_wr;
 	wire servo_update;
 	wire [11:0] servo_value;
-	// no DAC_DOUT support
-	wire [1:0] DAC_DOUT = {2{1'b0}};
 	RITC_Dual_DAC u_dac_simple(.clk_i(gb_clk),
 										.user_sel_i(sel_dac),
 									  .user_addr_i(gb_address[0]),
@@ -239,7 +238,7 @@ module glitc_top_v2(
 									  .servo_i(servo_value),
 									  
 									  .DAC_DIN(DAC_DIN),
-									  .DAC_DOUT(DAC_DOUT),
+									  .DAC_DOUT(~nDAC_DOUT),
 									  .DAC_CLOCK(DAC_CLK),
 									  .DAC_LATCH(DAC_LATCH));
 
@@ -262,7 +261,7 @@ module glitc_top_v2(
 	wire [1:0] VCDL_Q_PS;
 	wire [15:0] datapath_debug;
 	wire bit_control;
-	RITC_full_datapath_v2    u_full_datapath(.REFCLK_P(REFCLK_P),.REFCLK_N(REFCLK_N),
+	RITC_full_datapath_v2    #(.BIT_POLARITY(BIT_POLARITY)) u_full_datapath(.REFCLK_P(REFCLK_P),.REFCLK_N(REFCLK_N),
 													  .CH0_P(A_P),.CH0_N(A_N),
 													  .CH1_P(B_P),.CH1_N(B_N),
 													  .CH2_P(C_P),.CH2_N(C_N),

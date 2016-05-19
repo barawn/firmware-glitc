@@ -204,15 +204,20 @@ module RITC_Dual_DAC_Loader( input clk_i,
 	wire do_load;
 	wire do_done;
 	
-	localparam FSM_BITS = 3;
+	localparam FSM_BITS = 4;
 	localparam [FSM_BITS-1:0] IDLE = 0;
 	localparam [FSM_BITS-1:0] START_WAIT_1 = 1;
 	localparam [FSM_BITS-1:0] START_WAIT_2 = 2;
 	localparam [FSM_BITS-1:0] START_WAIT_3 = 3;
 	localparam [FSM_BITS-1:0] LOAD = 4;
-	localparam [FSM_BITS-1:0] CLOCK_LOW = 5;
-	localparam [FSM_BITS-1:0] CLOCK_HIGH = 6;
-	localparam [FSM_BITS-1:0] DONE = 7;
+	localparam [FSM_BITS-1:0] CLOCK_LOW_0 = 5;
+	localparam [FSM_BITS-1:0] CLOCK_LOW_1 = 6;
+	localparam [FSM_BITS-1:0] CLOCK_HIGH_0 = 7;
+	localparam [FSM_BITS-1:0] CLOCK_HIGH_1 = 8;
+	localparam [FSM_BITS-1:0] DONE_0 = 9;
+	localparam [FSM_BITS-1:0] DONE_1 = 10;
+	localparam [FSM_BITS-1:0] DONE_2 = 11;
+	localparam [FSM_BITS-1:0] DONE_3 = 12;
 	reg [FSM_BITS-1:0] state = IDLE;
 
 	always @(posedge clk_i) begin
@@ -235,7 +240,7 @@ module RITC_Dual_DAC_Loader( input clk_i,
 		// Need to skip over address for servo control if servo control is enabled.
 		if (state == IDLE) addr_reg <= {6{1'b0}};
 		else if (do_load) addr_reg <= addr_reg + 1;
-		if (state == CLOCK_HIGH) bit_counter <= bit_counter + 1;
+		if (state == CLOCK_HIGH_1) bit_counter <= bit_counter + 1;
 		else if (state == LOAD) bit_counter <= {4{1'b0}};
 
 		case (state)
@@ -243,24 +248,29 @@ module RITC_Dual_DAC_Loader( input clk_i,
 			START_WAIT_1: state <= START_WAIT_2;
 			START_WAIT_2: state <= START_WAIT_3;
 			START_WAIT_3: state <= LOAD;
-			LOAD: if (addr_reg == RITC_DACS) state <= DONE;
-					else state <= CLOCK_LOW;
-			CLOCK_LOW: if (bit_counter == RITC_DAC_BITS) state <= LOAD;
-						  else state <= CLOCK_HIGH;
-			CLOCK_HIGH: state <= CLOCK_LOW;
-			DONE: state <= IDLE;
+			LOAD: if (addr_reg == RITC_DACS) state <= DONE_0;
+					else state <= CLOCK_LOW_0;
+			CLOCK_LOW_0: state <= CLOCK_LOW_1;
+	   		CLOCK_LOW_1: if (bit_counter == RITC_DAC_BITS) state <= LOAD;
+						 else state <= CLOCK_HIGH_0;
+			CLOCK_HIGH_0: state <= CLOCK_HIGH_1;
+			CLOCK_HIGH_1: state <= CLOCK_LOW_0;
+			DONE_0: state <= DONE_1;
+			DONE_1: state <= DONE_2;
+			DONE_2: state <= DONE_3;
+			DONE_3: state <= IDLE;
 		endcase
 		
-		dac_latch_R0 <= (state == DONE);
-		dac_latch_R1 <= (state == DONE);
+		dac_latch_R0 <= (state == DONE_0 || state == DONE_1 || state == DONE_2 || state == DONE_3);
+		dac_latch_R1 <= (state == DONE_0 || state == DONE_1 || state == DONE_2 || state == DONE_3);
 	
-		dac_clock_R0 <= (state == CLOCK_LOW && (bit_counter != RITC_DAC_BITS));
-		dac_clock_R1 <= (state == CLOCK_LOW && (bit_counter != RITC_DAC_BITS));
+		dac_clock_R0 <= ((state == CLOCK_LOW_0 || state == CLOCK_LOW_1) && (bit_counter != RITC_DAC_BITS));
+		dac_clock_R1 <= ((state == CLOCK_LOW_0 || state == CLOCK_LOW_1) && (bit_counter != RITC_DAC_BITS));
 
 		do_read <= (state == START_WAIT_1) || (do_load);
 	end
 
-	assign do_shift = (state == CLOCK_HIGH);
+	assign do_shift = (state == CLOCK_HIGH_1);
 	assign do_load = (state == LOAD);
 	
 	assign DAC_LATCH[0] = dac_latch_R0;
@@ -272,5 +282,5 @@ module RITC_Dual_DAC_Loader( input clk_i,
 	
 	assign addr_o = addr_reg;
 	assign rd_o = do_read;
-	assign busy_o = !((state == IDLE) || (state == DONE));
+	assign busy_o = !((state == IDLE) || (state == DONE_3));
 endmodule
